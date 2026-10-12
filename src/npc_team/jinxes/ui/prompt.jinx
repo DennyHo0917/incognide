@@ -9,10 +9,7 @@ inputs:
 - message
 - prompt_type: choices
 - options: '[]'
-- window_id:
-    type: string
-    description: The Incognide window ID to target (omit to use current window)
-    required: false
+- window_id
 steps:
 - name: prompt
   engine: incognide

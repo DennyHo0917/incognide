@@ -3,18 +3,9 @@ description: Show a diff comparison between two text contents
 permissions:
   default: allow
 inputs:
-- original:
-    type: string
-    description: The original text
-    required: true
-- modified:
-    type: string
-    description: The modified text
-    required: true
-- window_id:
-    type: string
-    description: The Incognide window ID to target (omit to use current window)
-    required: false
+- original
+- modified
+- window_id
 steps:
 - name: show_diff
   engine: incognide

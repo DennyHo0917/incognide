@@ -1101,21 +1101,11 @@ function register(ctx) {
         }
       }
 
-      if (Array.isArray(data.paneSnapshot) && data.paneSnapshot.length > 0) {
-        const panesText = data.paneSnapshot.map(p =>
-          `  - ${p.id} (${p.type}${p.path ? ': ' + p.path : ''})${p.isActive ? ' [active]' : ''}`
-        ).join('\n');
-        const activePane = data.paneSnapshot.find(p => p.isActive);
-        const paneContextMessage = {
-          role: 'system',
-          content: `Current Incognide workspace:\nWindow ID: ${data.windowId || 'unknown'}\nWorking directory: ${data.currentPath || '.'}\nPanes in this window:\n${panesText}\nActive pane: ${activePane ? activePane.id + (activePane.path ? ' (' + activePane.path + ')' : '') : 'none'}\n\nWhen calling any Incognide UI jinx (open_pane, close_pane, focus_pane, read_pane, write_pane, list_panes, navigate, browser_*, etc.), always pass window_id='${data.windowId || ''}' so the action targets this window.`,
-        };
-        conversationMessages = [paneContextMessage, ...conversationMessages];
-      }
+      const commandstr = data.commandstr || '';
 
       const payload = {
         streamId: currentStreamId,
-        commandstr: data.commandstr,
+        commandstr,
         currentPath: data.currentPath,
         conversationId: data.conversationId,
         ...(model ? { model } : {}),

@@ -3,14 +3,8 @@ description: Focus an existing pane by its ID, bringing it to the foreground
 permissions:
   default: allow
 inputs:
-- paneId:
-    type: string
-    description: The ID of the pane to focus
-    required: true
-- window_id:
-    type: string
-    description: The Incognide window ID to target (omit to use current window)
-    required: false
+- paneId
+- window_id
 steps:
 - name: focus_pane
   engine: incognide

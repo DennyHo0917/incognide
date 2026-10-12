@@ -3,10 +3,7 @@ description: List all open panes in Incognide with their types, IDs, and status.
 permissions:
   default: allow
 inputs:
-- window_id:
-    type: string
-    description: The Incognide window ID to target (omit to use current window)
-    required: false
+- window_id
 steps:
 - name: list_panes
   engine: incognide

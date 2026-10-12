@@ -3,14 +3,8 @@ description: Navigate back in a browser pane history
 permissions:
   default: allow
 inputs:
-- paneId:
-    type: string
-    description: The ID of the browser pane (omit for active)
-    required: false
-- window_id:
-    type: string
-    description: The Incognide window ID to target (omit to use current window)
-    required: false
+- paneId
+- window_id
 steps:
 - name: browser_back
   engine: incognide

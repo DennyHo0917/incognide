@@ -9,7 +9,4 @@ steps:
   args: {}
   window_id: '{{ window_id }}'
 inputs:
-- window_id:
-    type: string
-    description: The Incognide window ID to target (omit to use current window)
-    required: false
+- window_id

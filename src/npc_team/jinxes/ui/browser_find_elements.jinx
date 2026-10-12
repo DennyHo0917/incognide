@@ -4,22 +4,10 @@ description: Find interactive elements in a browser pane and return selector/tex
 permissions:
   default: allow
 inputs:
-- paneId:
-    type: string
-    description: The ID of the browser pane (omit for active)
-    required: false
-- selector:
-    type: string
-    description: CSS selector to filter elements (e.g., 'button', 'textarea', '[data-testid="comment-submit-button"]')
-    required: false
-- maxResults:
-    type: integer
-    description: Maximum number of elements to return (default 50)
-    required: false
-- window_id:
-    type: string
-    description: The Incognide window ID to target (omit to use current window)
-    required: false
+- paneId
+- selector
+- maxResults
+- window_id
 steps:
 - name: browser_find_elements
   engine: incognide
