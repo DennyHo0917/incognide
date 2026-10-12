@@ -3,13 +3,12 @@ description: Focus an existing pane by its ID, bringing it to the foreground
 permissions:
   default: allow
 inputs:
-  - paneId:
-      type: string
-      description: The ID of the pane to focus
-      required: true
+- paneId
+- window_id
 steps:
-  - name: focus_pane
-    engine: incognide
-    action: focus_pane
-    args:
-      paneId: "{{ paneId }}"
+- name: focus_pane
+  engine: incognide
+  action: focus_pane
+  args:
+    paneId: '{{ paneId }}'
+  window_id: '{{ window_id }}'

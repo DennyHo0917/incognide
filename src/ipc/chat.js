@@ -1101,9 +1101,11 @@ function register(ctx) {
         }
       }
 
+      const commandstr = data.commandstr || '';
+
       const payload = {
         streamId: currentStreamId,
-        commandstr: data.commandstr,
+        commandstr,
         currentPath: data.currentPath,
         conversationId: data.conversationId,
         ...(model ? { model } : {}),
@@ -1174,6 +1176,7 @@ function register(ctx) {
           stream,
           sender: event.sender,
           conversationId: data.conversationId || null,
+          windowId: data.windowId || null,
           assistantMessageId: data.assistantMessageId || null,
           buffer: [],
           pendingCompletion: null,

@@ -560,8 +560,38 @@ export const hashContext = (contexts: any[]) => {
     return btoa(binary);
 };
 
-export const gatherWorkspaceContext = (contentDataRef: React.MutableRefObject<any>, contextFiles?: any[], excludedPaneIds?: Set<string>) => {
+export const gatherWorkspaceContext = (
+    contentDataRef: React.MutableRefObject<any>,
+    contextFiles?: any[],
+    excludedPaneIds?: Set<string>,
+    windowId?: string,
+    currentPath?: string,
+    activePaneId?: string
+) => {
     const contexts: any[] = [];
+
+    const panes: any[] = [];
+    Object.entries(contentDataRef.current).forEach(([paneId, paneData]: [string, any]) => {
+        if (excludedPaneIds && excludedPaneIds.has(paneId)) return;
+        if (!paneData?.contentType) return;
+        panes.push({
+            paneId,
+            type: paneData.contentType,
+            title: getPaneTitle(paneData),
+            contentId: paneData.contentId || null,
+            url: paneData.browserUrl || null,
+            shellType: paneData.shellType || null,
+        });
+    });
+    if (panes.length > 0) {
+        contexts.push({
+            type: 'pane_inventory',
+            panes,
+            windowId: windowId || null,
+            currentPath: currentPath || null,
+            activePaneId: activePaneId || null,
+        });
+    }
 
     Object.entries(contentDataRef.current).forEach(([paneId, paneData]: [string, any]) => {
         if (excludedPaneIds && excludedPaneIds.has(paneId)) return;

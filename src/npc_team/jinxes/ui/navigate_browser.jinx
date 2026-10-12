@@ -3,18 +3,14 @@ description: Navigate a browser pane to a URL
 permissions:
   default: allow
 inputs:
-  - paneId:
-      type: string
-      description: The ID of the browser pane (omit for active)
-      required: false
-  - url:
-      type: string
-      description: The URL to navigate to
-      required: true
+- paneId
+- url
+- window_id
 steps:
-  - name: navigate_browser
-    engine: incognide
-    action: navigate_pane
-    args:
-      paneId: "{{ paneId | default('active') }}"
-      target: "{{ url }}"
+- name: navigate_browser
+  engine: incognide
+  action: navigate_pane
+  args:
+    paneId: '{{ paneId | default(''active'') }}'
+    target: '{{ url }}'
+  window_id: '{{ window_id }}'

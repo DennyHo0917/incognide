@@ -81,10 +81,7 @@ function register(ctx) {
             const localHash = hashFile(dest);
             const lastDeployedHash = manifest[relPath];
 
-            if (relPath.endsWith('.npc')) {
-              skippedFiles.push(relPath);
-              newManifest[relPath] = localHash;
-            } else if (localHash === srcHash) {
+            if (localHash === srcHash) {
               newManifest[relPath] = srcHash;
             } else if (lastDeployedHash && localHash !== lastDeployedHash) {
               skippedFiles.push(relPath);
@@ -228,7 +225,12 @@ function register(ctx) {
             return { error: 'Backend returned no stream data.', streamId: currentStreamId };
         }
 
-        activeStreams.set(currentStreamId, { stream, eventSender: event.sender });
+        activeStreams.set(currentStreamId, {
+            stream,
+            eventSender: event.sender,
+            conversationId: data.conversationId || null,
+            windowId: data.windowId || null,
+        });
         ensureSenderCleanup(event.sender);
 
         (function(capturedStreamId) {

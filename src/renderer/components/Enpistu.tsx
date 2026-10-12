@@ -130,6 +130,7 @@ import { getFileName,
     findNodePath,
     stripSourcePrefix
 } from './utils';
+import { collectPaneInfo } from '../studioActions/paneActions';
 import { collectPaneIds } from './LayoutNode';
 
 import PaneHeader from './PaneHeader';
@@ -4463,7 +4464,7 @@ const handleBrowserDialogNavigate = (url) => {
             finalPromptForUserMessage = jinxCommandParts.join(' ');
         } else {
             const excludedPanes = getExcludedPaneIds(targetPaneId);
-            const contexts = gatherWorkspaceContext(contentDataRef, contextFiles, excludedPanes);
+            const contexts = gatherWorkspaceContext(contentDataRef, contextFiles, excludedPanes, windowId || null, currentPath || null, activeContentPaneId || null);
             const newHash = hashContext(contexts);
             const contextChanged = newHash !== contextHash;
 
@@ -4476,10 +4477,16 @@ const handleBrowserDialogNavigate = (url) => {
                 let contextPrompt = '';
 
                 if (paneInventory?.panes?.length) {
-                    contextPrompt += 'Open panes:\n' + paneInventory.panes.map((p: any) => {
+                    const activePane = paneInventory.panes.find((p: any) => p.paneId === paneInventory.activePaneId);
+                    contextPrompt += `Window ID: ${paneInventory.windowId || 'unknown'}\nWorking directory: ${paneInventory.currentPath || '.'}\nActive pane: ${activePane ? activePane.paneId + (activePane.contentId ? ` (${activePane.contentId})` : '') : 'none'}\nOpen panes:\n`;
+                    contextPrompt += paneInventory.panes.map((p: any) => {
                         const loc = p.contentId || p.url || p.shellType || '';
-                        return `- pane_id: ${p.paneId} | type: ${p.type} | title: ${p.title}${loc ? ` | ${p.type === 'browser' ? 'url' : p.type === 'terminal' ? 'shell' : 'content'}: ${loc}` : ''}`;
+                        const activeMark = p.paneId === paneInventory.activePaneId ? ' [active]' : '';
+                        return `- pane_id: ${p.paneId} | type: ${p.type} | title: ${p.title}${loc ? ` | ${p.type === 'browser' ? 'url' : p.type === 'terminal' ? 'shell' : 'content'}: ${loc}` : ''}${activeMark}`;
                     }).join('\n');
+                    if (paneInventory.windowId) {
+                        contextPrompt += `\n\nWhen calling any Incognide UI jinx, pass window_id='${paneInventory.windowId}' so the action targets this window.`;
+                    }
                 }
 
                 if (fileContexts.length > 0) {
@@ -4679,11 +4686,24 @@ const handleBrowserDialogNavigate = (url) => {
 
             const npcName = queueItem.currentNPC?.replace(/^(project:|global:)/, '') || 'agent';
 
+            const currentPanes = rootLayoutNode ? collectPaneInfo(rootLayoutNode, contentDataRef.current, activeContentPaneId) : [];
+            const paneSnapshot = currentPanes.map(p => ({
+                id: p.id,
+                type: p.type,
+                title: p.title,
+                path: p.path,
+                isActive: p.isActive,
+            }));
+
             if (queueItem.isJinxCall) {
+                const jinxArgs = [...(queueItem.jinxInputs || [])];
+                if (windowId) jinxArgs.push(`window_id=${windowId}`);
                 await window.api.executeJinx({
                     jinxName: queueItem.jinxName,
-                    jinxArgs: queueItem.jinxInputs,
+                    jinxArgs,
                     currentPath,
+                    windowId,
+                    paneSnapshot,
                     conversationId,
                     model: queueItem.paneModel,
                     provider: queueItem.paneProvider,
@@ -4699,6 +4719,8 @@ const handleBrowserDialogNavigate = (url) => {
                 const commandData = {
                     commandstr: queueItem.content,
                     currentPath,
+                    windowId,
+                    paneSnapshot,
                     conversationId,
                     model: queueItem.paneModel,
                     provider: queueItem.paneProvider,

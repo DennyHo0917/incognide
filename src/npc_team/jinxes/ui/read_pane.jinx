@@ -1,15 +1,18 @@
 jinx_name: read_pane
-description: >
-  Read content from any pane. Works on all types: editor (file text),
-  browser (url + title), terminal (output), csv (data + stats),
-  docx (text), pptx (slides), chat (recent messages).
+description: 'Read content from any pane. Works on all types: editor (file text),
+  browser (url + title), terminal (output), csv (data + stats), docx (text), pptx
+  (slides), chat (recent messages).
+
+  '
 permissions:
   default: allow
 inputs:
-  - { pane_id: "active" }
+- pane_id: active
+- window_id
 steps:
-  - name: read_pane
-    engine: incognide
-    action: read_pane
-    args:
-      paneId: "{{ pane_id }}"
+- name: read_pane
+  engine: incognide
+  action: read_pane
+  args:
+    paneId: '{{ pane_id }}'
+  window_id: '{{ window_id }}'

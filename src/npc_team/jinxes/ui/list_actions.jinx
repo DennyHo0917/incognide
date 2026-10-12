@@ -3,7 +3,10 @@ description: List all available studio actions
 permissions:
   default: allow
 steps:
-  - name: list_actions
-    engine: incognide
-    action: list_actions
-    args: {}
+- name: list_actions
+  engine: incognide
+  action: list_actions
+  args: {}
+  window_id: '{{ window_id }}'
+inputs:
+- window_id

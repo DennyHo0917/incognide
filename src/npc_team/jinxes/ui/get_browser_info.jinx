@@ -3,13 +3,12 @@ description: Get the current URL and title of a browser pane
 permissions:
   default: allow
 inputs:
-  - paneId:
-      type: string
-      description: The ID of the browser pane (omit for active)
-      required: false
+- paneId
+- window_id
 steps:
-  - name: get_browser_info
-    engine: incognide
-    action: get_browser_info
-    args:
-      paneId: "{{ paneId | default('active') }}"
+- name: get_browser_info
+  engine: incognide
+  action: get_browser_info
+  args:
+    paneId: '{{ paneId | default(''active'') }}'
+  window_id: '{{ window_id }}'

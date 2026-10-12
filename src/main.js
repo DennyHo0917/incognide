@@ -1818,6 +1818,12 @@ async function deployIncognideTeamOnStartup() {
     if (entries.length > 0 && hasManifest) {
       log(`[Deploy] npc_team already present at ${destBase}, re-deploying to ensure latest files`);
     }
+    let manifest = {};
+    if (hasManifest) {
+      try {
+        manifest = JSON.parse(await fsPromises.readFile(manifestPath, 'utf8'));
+      } catch {}
+    }
     const newManifest = {};
     const copyAndTrack = async (src, dest, relBase = '') => {
       const stat = await fsPromises.stat(src);
@@ -1828,11 +1834,28 @@ async function deployIncognideTeamOnStartup() {
           await copyAndTrack(path.join(src, item), path.join(dest, item), relBase ? `${relBase}/${item}` : item);
         }
       } else {
-        const shouldCopy = !relBase.endsWith('.npc') || !fs.existsSync(dest) || process.env.INCOGNIDE_FORCE_UPDATE_NPCS === '1';
-        if (shouldCopy) {
+        const srcHash = crypto.createHash('sha256').update(await fsPromises.readFile(src)).digest('hex');
+        if (fs.existsSync(dest)) {
+          const localHash = crypto.createHash('sha256').update(await fsPromises.readFile(dest)).digest('hex');
+          const lastDeployedHash = manifest[relBase];
+          const forceUpdate = process.env.INCOGNIDE_FORCE_UPDATE_NPCS === '1';
+          if (forceUpdate) {
+            await fsPromises.copyFile(src, dest);
+            newManifest[relBase] = srcHash;
+          } else if (localHash === srcHash) {
+            newManifest[relBase] = srcHash;
+          } else if (lastDeployedHash && localHash !== lastDeployedHash) {
+            newManifest[relBase] = lastDeployedHash;
+          } else if (!lastDeployedHash && localHash !== srcHash) {
+            newManifest[relBase] = localHash;
+          } else {
+            await fsPromises.copyFile(src, dest);
+            newManifest[relBase] = srcHash;
+          }
+        } else {
           await fsPromises.copyFile(src, dest);
+          newManifest[relBase] = srcHash;
         }
-        newManifest[relBase] = crypto.createHash('sha256').update(await fsPromises.readFile(dest)).digest('hex');
       }
     };
     await copyAndTrack(npcTeamSrc, destBase);
