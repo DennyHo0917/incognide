@@ -1,15 +1,22 @@
 jinx_name: browser_screenshot
-description: Take a screenshot of a browser pane and return it as a data URL. Use only as a last resort when get_browser_content and browser_find_elements are not enough.
+description: Take a screenshot of a browser pane and return it as a data URL. Use
+  only as a last resort when get_browser_content and browser_find_elements are not
+  enough.
 permissions:
   default: allow
 inputs:
-  - paneId:
-      type: string
-      description: The ID of the browser pane (omit for active)
-      required: false
+- paneId:
+    type: string
+    description: The ID of the browser pane (omit for active)
+    required: false
+- window_id:
+    type: string
+    description: The Incognide window ID to target (omit to use current window)
+    required: false
 steps:
-  - name: browser_screenshot
-    engine: incognide
-    action: browser_screenshot
-    args:
-      paneId: "{{ paneId | default('active') }}"
+- name: browser_screenshot
+  engine: incognide
+  action: browser_screenshot
+  args:
+    paneId: '{{ paneId | default(''active'') }}'
+  window_id: '{{ window_id }}'

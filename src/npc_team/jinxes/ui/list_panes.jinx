@@ -2,9 +2,14 @@ jinx_name: list_panes
 description: List all open panes in Incognide with their types, IDs, and status.
 permissions:
   default: allow
-inputs: []
+inputs:
+- window_id:
+    type: string
+    description: The Incognide window ID to target (omit to use current window)
+    required: false
 steps:
-  - name: list_panes
-    engine: incognide
-    action: list_panes
-    args: {}
+- name: list_panes
+  engine: incognide
+  action: list_panes
+  args: {}
+  window_id: '{{ window_id }}'

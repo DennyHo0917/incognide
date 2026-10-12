@@ -130,6 +130,7 @@ import { getFileName,
     findNodePath,
     stripSourcePrefix
 } from './utils';
+import { collectPaneInfo } from '../studioActions/paneActions';
 import { collectPaneIds } from './LayoutNode';
 
 import PaneHeader from './PaneHeader';
@@ -4679,11 +4680,24 @@ const handleBrowserDialogNavigate = (url) => {
 
             const npcName = queueItem.currentNPC?.replace(/^(project:|global:)/, '') || 'agent';
 
+            const currentPanes = rootLayoutNode ? collectPaneInfo(rootLayoutNode, contentDataRef.current, activeContentPaneId) : [];
+            const paneSnapshot = currentPanes.map(p => ({
+                id: p.id,
+                type: p.type,
+                title: p.title,
+                path: p.path,
+                isActive: p.isActive,
+            }));
+
             if (queueItem.isJinxCall) {
+                const jinxArgs = [...(queueItem.jinxInputs || [])];
+                if (windowId) jinxArgs.push(`window_id=${windowId}`);
                 await window.api.executeJinx({
                     jinxName: queueItem.jinxName,
-                    jinxArgs: queueItem.jinxInputs,
+                    jinxArgs,
                     currentPath,
+                    windowId,
+                    paneSnapshot,
                     conversationId,
                     model: queueItem.paneModel,
                     provider: queueItem.paneProvider,
@@ -4699,6 +4713,8 @@ const handleBrowserDialogNavigate = (url) => {
                 const commandData = {
                     commandstr: queueItem.content,
                     currentPath,
+                    windowId,
+                    paneSnapshot,
                     conversationId,
                     model: queueItem.paneModel,
                     provider: queueItem.paneProvider,

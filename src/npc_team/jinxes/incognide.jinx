@@ -2,12 +2,16 @@ jinx_name: incognide
 description: Engine jinx for Incognide studio actions. Use as engine in other jinxes to call UI actions.
 permissions:
   default: allow
+inputs:
+  - action
+  - window_id
 steps:
   - name: studio_action
     engine: python
     code: |
       import requests, json as _json, socket
       _action = "{{ action }}".strip()
+      _window_id = "{{ window_id }}".strip()
       def _try_ports():
           for p in [7337, 6337]:
               for host in ['localhost', '127.0.0.1']:
@@ -121,7 +125,10 @@ steps:
               }
           try:
               _url = f'http://localhost:{_port}/api/studio/action'
-              _r = requests.post(_url, json={'action': _action, 'args': _args}, timeout=60)
+              _payload = {'action': _action, 'args': _args}
+              if _window_id:
+                  _payload['window_id'] = _window_id
+              _r = requests.post(_url, json=_payload, timeout=60)
               _res = _r.json()
               output = _json.dumps(_res, indent=2)
               context['action_result'] = _res

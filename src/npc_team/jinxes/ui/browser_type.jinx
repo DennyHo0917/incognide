@@ -3,33 +3,38 @@ description: Type text into an input element in a browser pane
 permissions:
   default: allow
 inputs:
-  - paneId:
-      type: string
-      description: The ID of the browser pane (omit for active)
-      required: false
-  - selector:
-      type: string
-      description: CSS selector or placeholder text of the input element
-      required: true
-  - text:
-      type: string
-      description: Text to type into the element
-      required: true
-  - clear:
-      type: boolean
-      description: Whether to clear the input first
-      required: false
-  - submit:
-      type: boolean
-      description: Whether to submit the form after typing
-      required: false
+- paneId:
+    type: string
+    description: The ID of the browser pane (omit for active)
+    required: false
+- selector:
+    type: string
+    description: CSS selector or placeholder text of the input element
+    required: true
+- text:
+    type: string
+    description: Text to type into the element
+    required: true
+- clear:
+    type: boolean
+    description: Whether to clear the input first
+    required: false
+- submit:
+    type: boolean
+    description: Whether to submit the form after typing
+    required: false
+- window_id:
+    type: string
+    description: The Incognide window ID to target (omit to use current window)
+    required: false
 steps:
-  - name: browser_type
-    engine: incognide
-    action: browser_type
-    args:
-      paneId: "{{ paneId | default('active') }}"
-      selector: "{{ selector }}"
-      text: "{{ text }}"
-      clear: "{{ clear | default(true) }}"
-      submit: "{{ submit | default(false) }}"
+- name: browser_type
+  engine: incognide
+  action: browser_type
+  args:
+    paneId: '{{ paneId | default(''active'') }}'
+    selector: '{{ selector }}'
+    text: '{{ text }}'
+    clear: '{{ clear | default(true) }}'
+    submit: '{{ submit | default(false) }}'
+  window_id: '{{ window_id }}'

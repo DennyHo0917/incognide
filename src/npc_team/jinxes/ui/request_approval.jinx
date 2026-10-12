@@ -3,13 +3,18 @@ description: Request user approval before performing an action
 permissions:
   default: allow
 inputs:
-  - message:
-      type: string
-      description: The approval message to display
-      required: true
+- message:
+    type: string
+    description: The approval message to display
+    required: true
+- window_id:
+    type: string
+    description: The Incognide window ID to target (omit to use current window)
+    required: false
 steps:
-  - name: request_approval
-    engine: incognide
-    action: confirm
-    args:
-      message: "{{ message }}"
+- name: request_approval
+  engine: incognide
+  action: confirm
+  args:
+    message: '{{ message }}'
+  window_id: '{{ window_id }}'

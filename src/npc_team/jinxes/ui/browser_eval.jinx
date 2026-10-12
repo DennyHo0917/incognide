@@ -3,18 +3,23 @@ description: Execute arbitrary JavaScript in a browser pane
 permissions:
   default: allow
 inputs:
-  - paneId:
-      type: string
-      description: The ID of the browser pane (omit for active)
-      required: false
-  - code:
-      type: string
-      description: JavaScript code to execute in the browser
-      required: true
+- paneId:
+    type: string
+    description: The ID of the browser pane (omit for active)
+    required: false
+- code:
+    type: string
+    description: JavaScript code to execute in the browser
+    required: true
+- window_id:
+    type: string
+    description: The Incognide window ID to target (omit to use current window)
+    required: false
 steps:
-  - name: browser_eval
-    engine: incognide
-    action: browser_eval
-    args:
-      paneId: "{{ paneId | default('active') }}"
-      code: "{{ code }}"
+- name: browser_eval
+  engine: incognide
+  action: browser_eval
+  args:
+    paneId: '{{ paneId | default(''active'') }}'
+    code: '{{ code }}'
+  window_id: '{{ window_id }}'

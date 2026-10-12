@@ -1,17 +1,23 @@
 jinx_name: interact
-description: >
-  Run code/commands in any pane context. Browser: evaluates JavaScript.
-  Terminal: runs shell command. Spreadsheet: JS with {headers, data, XLSX}.
-  Document: JS eval. Presentation: JS eval.
+description: 'Run code/commands in any pane context. Browser: evaluates JavaScript.
+  Terminal: runs shell command. Spreadsheet: JS with {headers, data, XLSX}. Document:
+  JS eval. Presentation: JS eval.
+
+  '
 permissions:
   default: allow
 inputs:
-  - code
-  - { pane_id: "active" }
+- code
+- pane_id: active
+- window_id:
+    type: string
+    description: The Incognide window ID to target (omit to use current window)
+    required: false
 steps:
-  - name: interact
-    engine: incognide
-    action: interact
-    args:
-      code: "{{ code }}"
-      paneId: "{{ pane_id }}"
+- name: interact
+  engine: incognide
+  action: interact
+  args:
+    code: '{{ code }}'
+    paneId: '{{ pane_id }}'
+  window_id: '{{ window_id }}'

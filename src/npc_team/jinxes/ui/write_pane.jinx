@@ -1,20 +1,26 @@
 jinx_name: write_pane
-description: >
-  Write content to any pane. Editor: replaces file content. Document: writes
-  text (position: replace, end, start, cursor). Spreadsheet: pass JSON array
-  of {row, col, value}. Presentation: pass JSON {shapeIndex, text, slideIndex?}.
-  Terminal: sends as command.
+description: 'Write content to any pane. Editor: replaces file content. Document:
+  writes text (position: replace, end, start, cursor). Spreadsheet: pass JSON array
+  of {row, col, value}. Presentation: pass JSON {shapeIndex, text, slideIndex?}. Terminal:
+  sends as command.
+
+  '
 permissions:
   default: allow
 inputs:
-  - content
-  - { pane_id: "active" }
-  - { position: "replace" }
+- content
+- pane_id: active
+- position: replace
+- window_id:
+    type: string
+    description: The Incognide window ID to target (omit to use current window)
+    required: false
 steps:
-  - name: write_pane
-    engine: incognide
-    action: write_pane
-    args:
-      content: "{{ content }}"
-      paneId: "{{ pane_id }}"
-      position: "{{ position }}"
+- name: write_pane
+  engine: incognide
+  action: write_pane
+  args:
+    content: '{{ content }}'
+    paneId: '{{ pane_id }}'
+    position: '{{ position }}'
+  window_id: '{{ window_id }}'

@@ -3,7 +3,13 @@ description: List all available pane types that can be opened
 permissions:
   default: allow
 steps:
-  - name: list_pane_types
-    engine: incognide
-    action: list_pane_types
-    args: {}
+- name: list_pane_types
+  engine: incognide
+  action: list_pane_types
+  args: {}
+  window_id: '{{ window_id }}'
+inputs:
+- window_id:
+    type: string
+    description: The Incognide window ID to target (omit to use current window)
+    required: false

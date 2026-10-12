@@ -1,16 +1,22 @@
 jinx_name: notify
-description: Show a notification toast to the user. Type can be info, success, warning, or error.
+description: Show a notification toast to the user. Type can be info, success, warning,
+  or error.
 permissions:
   default: allow
 inputs:
-  - message
-  - { type: "info" }
-  - { duration: 3000 }
+- message
+- type: info
+- duration: 3000
+- window_id:
+    type: string
+    description: The Incognide window ID to target (omit to use current window)
+    required: false
 steps:
-  - name: notify
-    engine: incognide
-    action: notify
-    args:
-      message: "{{ message }}"
-      type: "{{ type }}"
-      duration: "{{ duration }}"
+- name: notify
+  engine: incognide
+  action: notify
+  args:
+    message: '{{ message }}'
+    type: '{{ type }}'
+    duration: '{{ duration }}'
+  window_id: '{{ window_id }}'
