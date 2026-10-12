@@ -337,44 +337,57 @@ const backendLogStream = fs.createWriteStream(backendLogPath, { flags: 'a' });
 
 let mainWindow = null;
 
-ipcMain.on('window-minimize', () => {
-    mainWindow?.minimize();
+function getTargetWindow(event) {
+    const senderWindow = event.sender ? BrowserWindow.fromWebContents(event.sender) : null;
+    if (senderWindow && !senderWindow.isDestroyed()) return senderWindow;
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    if (focusedWindow && !focusedWindow.isDestroyed()) return focusedWindow;
+    if (mainWindow && !mainWindow.isDestroyed()) return mainWindow;
+    const anyWindow = BrowserWindow.getAllWindows().find(w => !w.isDestroyed());
+    return anyWindow || null;
+}
+
+ipcMain.on('window-minimize', (event) => {
+    getTargetWindow(event)?.minimize();
 });
-ipcMain.on('window-maximize', () => {
-    if (!mainWindow) return;
-    if (mainWindow.isMaximized()) mainWindow.unmaximize();
-    else mainWindow.maximize();
+ipcMain.on('window-maximize', (event) => {
+    const win = getTargetWindow(event);
+    if (!win) return;
+    if (win.isMaximized()) win.unmaximize();
+    else win.maximize();
 });
-ipcMain.on('window-close', () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.close();
+ipcMain.on('window-close', (event) => {
+    const win = getTargetWindow(event);
+    if (win && !win.isDestroyed()) {
+        win.close();
     } else {
         app.quit();
     }
 });
-ipcMain.handle('window-is-maximized', () => {
-    return mainWindow?.isMaximized() ?? false;
+ipcMain.handle('window-is-maximized', (event) => {
+    return getTargetWindow(event)?.isMaximized() ?? false;
 });
-ipcMain.on('window-open-devtools', () => {
-    mainWindow?.webContents?.openDevTools();
+ipcMain.on('window-open-devtools', (event) => {
+    getTargetWindow(event)?.webContents?.openDevTools();
 });
-ipcMain.on('window-toggle-devtools', () => {
-    mainWindow?.webContents?.toggleDevTools();
+ipcMain.on('window-toggle-devtools', (event) => {
+    getTargetWindow(event)?.webContents?.toggleDevTools();
 });
 
-ipcMain.on('menu-action', (_, { action, url }) => {
-    if (!mainWindow) return;
+ipcMain.on('menu-action', (event, { action, url }) => {
+    const win = getTargetWindow(event);
+    if (!win) return;
     switch (action) {
-        case 'reload': mainWindow.webContents.reload(); break;
-        case 'forceReload': mainWindow.webContents.reloadIgnoringCache(); break;
-        case 'toggleDevTools': mainWindow.webContents.toggleDevTools(); break;
-        case 'toggleFullScreen': mainWindow.setFullScreen(!mainWindow.isFullScreen()); break;
-        case 'minimize': mainWindow.minimize(); break;
-        case 'zoom': if (mainWindow.isMaximized()) mainWindow.unmaximize(); else mainWindow.maximize(); break;
-        case 'close': mainWindow.close(); break;
+        case 'reload': win.webContents.reload(); break;
+        case 'forceReload': win.webContents.reloadIgnoringCache(); break;
+        case 'toggleDevTools': win.webContents.toggleDevTools(); break;
+        case 'toggleFullScreen': win.setFullScreen(!win.isFullScreen()); break;
+        case 'minimize': win.minimize(); break;
+        case 'zoom': if (win.isMaximized()) win.unmaximize(); else win.maximize(); break;
+        case 'close': win.close(); break;
         case 'openExternal': shell.openExternal(url || 'https://incognide.com'); break;
         case 'about':
-            dialog.showMessageBox(mainWindow, {
+            dialog.showMessageBox(win, {
                 type: 'info',
                 title: 'About Incognide',
                 message: 'Incognide',
@@ -382,7 +395,7 @@ ipcMain.on('menu-action', (_, { action, url }) => {
             });
             break;
         default:
-            mainWindow.webContents.send(action);
+            win.webContents.send(action);
     }
 });
 
@@ -391,8 +404,21 @@ let uiHidden = false;
 let frontendServer = null;
 let clerkWebRequestRegistered = false;
 
+function getMenuTargetWindow(focusedWindow) {
+  if (focusedWindow && !focusedWindow.isDestroyed()) return focusedWindow;
+  const current = BrowserWindow.getFocusedWindow();
+  if (current && !current.isDestroyed()) return current;
+  if (mainWindow && !mainWindow.isDestroyed()) return mainWindow;
+  const anyWindow = BrowserWindow.getAllWindows().find(w => !w.isDestroyed());
+  return anyWindow || null;
+}
+
+function sendToMenuWindow(channel, focusedWindow) {
+  const win = getMenuTargetWindow(focusedWindow);
+  win?.webContents.send(channel);
+}
+
 function applyAppMenu() {
-  if (!mainWindow) return;
   const isMac = process.platform === 'darwin';
   const menuTemplate = [
     ...(isMac ? [{
@@ -400,7 +426,7 @@ function applyAppMenu() {
       submenu: [
         { role: 'about' },
         { type: 'separator' },
-        { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => mainWindow.webContents.send('menu-open-settings') },
+        { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: (_, focusedWindow) => sendToMenuWindow('menu-open-settings', focusedWindow) },
         { type: 'separator' },
         { role: 'services' },
         { type: 'separator' },
@@ -414,21 +440,21 @@ function applyAppMenu() {
     {
       label: 'File',
       submenu: [
-        { label: 'New Chat', click: () => mainWindow.webContents.send('menu-new-chat') },
-        { label: 'New Terminal', accelerator: isMac ? 'Ctrl+Shift+T' : 'Super+Shift+T', click: () => mainWindow.webContents.send('menu-new-terminal') },
-        { label: 'Reopen Closed Tab', accelerator: 'CmdOrCtrl+Shift+T', click: () => mainWindow.webContents.send('menu-reopen-tab') },
-        { label: 'New Browser Tab', accelerator: 'CmdOrCtrl+T', click: () => mainWindow.webContents.send('browser-new-tab') },
+        { label: 'New Chat', click: (_, focusedWindow) => sendToMenuWindow('menu-new-chat', focusedWindow) },
+        { label: 'New Terminal', accelerator: isMac ? 'Ctrl+Shift+T' : 'Super+Shift+T', click: (_, focusedWindow) => sendToMenuWindow('menu-new-terminal', focusedWindow) },
+        { label: 'Reopen Closed Tab', accelerator: 'CmdOrCtrl+Shift+T', click: (_, focusedWindow) => sendToMenuWindow('menu-reopen-tab', focusedWindow) },
+        { label: 'New Browser Tab', accelerator: 'CmdOrCtrl+T', click: (_, focusedWindow) => sendToMenuWindow('browser-new-tab', focusedWindow) },
         { type: 'separator' },
-        { label: 'Open File...', accelerator: 'CmdOrCtrl+O', click: () => mainWindow.webContents.send('menu-open-file') },
-        { label: 'Open Folder...', accelerator: 'CmdOrCtrl+Shift+O', click: () => mainWindow.webContents.send('open-folder-picker') },
+        { label: 'Open File...', accelerator: 'CmdOrCtrl+O', click: (_, focusedWindow) => sendToMenuWindow('menu-open-file', focusedWindow) },
+        { label: 'Open Folder...', accelerator: 'CmdOrCtrl+Shift+O', click: (_, focusedWindow) => sendToMenuWindow('open-folder-picker', focusedWindow) },
         { type: 'separator' },
-        { label: 'Save', accelerator: 'CmdOrCtrl+S', click: () => mainWindow.webContents.send('menu-save-file') },
-        { label: 'Save As...', accelerator: 'CmdOrCtrl+Shift+S', click: () => mainWindow.webContents.send('menu-save-file-as') },
+        { label: 'Save', accelerator: 'CmdOrCtrl+S', click: (_, focusedWindow) => sendToMenuWindow('menu-save-file', focusedWindow) },
+        { label: 'Save As...', accelerator: 'CmdOrCtrl+Shift+S', click: (_, focusedWindow) => sendToMenuWindow('menu-save-file-as', focusedWindow) },
         { type: 'separator' },
-        { label: 'Close Tab', accelerator: 'CmdOrCtrl+W', click: () => mainWindow.webContents.send('menu-close-tab') },
+        { label: 'Close Tab', accelerator: 'CmdOrCtrl+W', click: (_, focusedWindow) => sendToMenuWindow('menu-close-tab', focusedWindow) },
         { type: 'separator' },
         ...(isMac ? [] : [
-          { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => mainWindow.webContents.send('menu-open-settings') },
+          { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: (_, focusedWindow) => sendToMenuWindow('menu-open-settings', focusedWindow) },
           { type: 'separator' },
           { role: 'quit' }
         ])
@@ -440,23 +466,23 @@ function applyAppMenu() {
         { role: 'undo' }, { role: 'redo' }, { type: 'separator' },
         { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'pasteAndMatchStyle' },
         { role: 'delete' }, { role: 'selectAll' }, { type: 'separator' },
-        { label: 'Find', accelerator: 'CmdOrCtrl+F', click: () => mainWindow.webContents.send('menu-find') },
-        { label: 'Find in Files', accelerator: 'CmdOrCtrl+Shift+F', click: () => mainWindow.webContents.send('menu-global-search') }
+        { label: 'Find', accelerator: 'CmdOrCtrl+F', click: (_, focusedWindow) => sendToMenuWindow('menu-find', focusedWindow) },
+        { label: 'Find in Files', accelerator: 'CmdOrCtrl+Shift+F', click: (_, focusedWindow) => sendToMenuWindow('menu-global-search', focusedWindow) }
       ]
     },
     {
       label: 'View',
       submenu: [
-        { label: 'Command Palette', accelerator: 'CmdOrCtrl+P', click: () => mainWindow.webContents.send('menu-command-palette') },
+        { label: 'Command Palette', accelerator: 'CmdOrCtrl+P', click: (_, focusedWindow) => sendToMenuWindow('menu-command-palette', focusedWindow) },
         { type: 'separator' },
-        { label: 'Toggle Sidebar', accelerator: 'CmdOrCtrl+B', click: () => mainWindow.webContents.send('menu-toggle-sidebar') },
-        { label: uiHidden ? 'Show UI' : 'Hide UI', accelerator: 'CmdOrCtrl+F11', click: () => mainWindow.webContents.send('menu-toggle-hide-ui') },
+        { label: 'Toggle Sidebar', accelerator: 'CmdOrCtrl+B', click: (_, focusedWindow) => sendToMenuWindow('menu-toggle-sidebar', focusedWindow) },
+        { label: uiHidden ? 'Show UI' : 'Hide UI', accelerator: 'CmdOrCtrl+F11', click: (_, focusedWindow) => sendToMenuWindow('menu-toggle-hide-ui', focusedWindow) },
         { type: 'separator' },
         { role: 'reload' }, { role: 'forceReload' }, { role: 'toggleDevTools' },
         { type: 'separator' },
-        { label: 'Actual Size', accelerator: 'CmdOrCtrl+0', click: (_, focusedWindow) => focusedWindow && focusedWindow.webContents.send('zoom-reset') },
-        { label: 'Zoom In', accelerator: 'CmdOrCtrl+=', click: (_, focusedWindow) => focusedWindow && focusedWindow.webContents.send('zoom-in') },
-        { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', click: (_, focusedWindow) => focusedWindow && focusedWindow.webContents.send('zoom-out') },
+        { label: 'Actual Size', accelerator: 'CmdOrCtrl+0', click: (_, focusedWindow) => sendToMenuWindow('zoom-reset', focusedWindow) },
+        { label: 'Zoom In', accelerator: 'CmdOrCtrl+=', click: (_, focusedWindow) => sendToMenuWindow('zoom-in', focusedWindow) },
+        { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', click: (_, focusedWindow) => sendToMenuWindow('zoom-out', focusedWindow) },
         { type: 'separator' },
         { role: 'togglefullscreen' }
       ]
@@ -464,30 +490,31 @@ function applyAppMenu() {
     {
       label: 'Window',
       submenu: [
-        { label: 'New Window', accelerator: 'CmdOrCtrl+Shift+N', click: () => mainWindow.webContents.send('menu-new-window') },
+        { label: 'New Window', accelerator: 'CmdOrCtrl+Shift+N', click: (_, focusedWindow) => sendToMenuWindow('menu-new-window', focusedWindow) },
         { type: 'separator' },
         { role: 'minimize' }, { role: 'zoom' },
         ...(isMac
           ? [{ type: 'separator' }, { role: 'front' }, { type: 'separator' }, { role: 'window' }]
           : [{ role: 'close' }]),
         { type: 'separator' },
-        { label: 'Split Pane Right', click: () => mainWindow.webContents.send('menu-split-right') },
-        { label: 'Split Pane Down', click: () => mainWindow.webContents.send('menu-split-down') }
+        { label: 'Split Pane Right', click: (_, focusedWindow) => sendToMenuWindow('menu-split-right', focusedWindow) },
+        { label: 'Split Pane Down', click: (_, focusedWindow) => sendToMenuWindow('menu-split-down', focusedWindow) }
       ]
     },
     {
       label: 'Help',
       submenu: [
-        { label: 'Help & Documentation', click: () => mainWindow.webContents.send('menu-open-help') },
-        { label: 'Keyboard Shortcuts', accelerator: 'CmdOrCtrl+/', click: () => mainWindow.webContents.send('menu-show-shortcuts') },
+        { label: 'Help & Documentation', click: (_, focusedWindow) => sendToMenuWindow('menu-open-help', focusedWindow) },
+        { label: 'Keyboard Shortcuts', accelerator: 'CmdOrCtrl+/', click: (_, focusedWindow) => sendToMenuWindow('menu-show-shortcuts', focusedWindow) },
         { type: 'separator' },
         { label: 'Report Issue', click: () => shell.openExternal('https://github.com/NPC-Worldwide/incognide/issues') },
         { label: 'Visit Website', click: () => shell.openExternal('https://incognide.com') },
         { type: 'separator' },
         {
           label: 'About Incognide',
-          click: () => {
-            dialog.showMessageBox(mainWindow, {
+          click: (_, focusedWindow) => {
+            const win = getMenuTargetWindow(focusedWindow);
+            dialog.showMessageBox(win || undefined, {
               type: 'info',
               title: 'About Incognide',
               message: 'Incognide',
@@ -2402,16 +2429,11 @@ function saveUserProfile(profile) {
   }
 }
 
-function registerGlobalShortcut(win) {
-  if (!win) {
-    console.warn('No window provided to registerGlobalShortcut');
-    return;
-  }
-
+function registerGlobalShortcut() {
   globalShortcut.unregisterAll();
 
   try {
-    const screenshotSuccess = globalShortcut.register('Ctrl+Alt+4', async () => {
+    globalShortcut.register('Ctrl+Alt+4', async () => {
       const now = Date.now();
       if (isCapturingScreenshot || (now - lastScreenshotTime) < SCREENSHOT_COOLDOWN) {
         console.log('Screenshot capture blocked - too soon or already capturing');
@@ -2487,11 +2509,13 @@ function registerGlobalShortcut(win) {
             fs.writeFileSync(screenshotPath, croppedImage.toPNG());
 
             console.log('Screenshot saved to:', screenshotPath);
-            win.webContents.send('screenshot-captured', screenshotPath);
-
-            if (win.isMinimized()) win.restore();
-            win.show();
-            win.focus();
+            const targetWindow = BrowserWindow.getFocusedWindow() || mainWindow;
+            if (targetWindow && !targetWindow.isDestroyed()) {
+              targetWindow.webContents.send('screenshot-captured', screenshotPath);
+              if (targetWindow.isMinimized()) targetWindow.restore();
+              targetWindow.show();
+              targetWindow.focus();
+            }
 
           } catch (error) {
             console.error('Screenshot crop/save failed:', error);
@@ -2849,16 +2873,16 @@ function createWindow(cliArgs = {}) {
       }
           });
     mainWindow.once('ready-to-show', () => {
-      mainWindow.show();
+      win.show();
       if (splashWindow && !splashWindow.isDestroyed()) {
         splashWindow.close();
         splashWindow = null;
       }
       if (windowState.maximized) {
-        mainWindow.maximize();
+        win.maximize();
       }
       if (IS_DEV_MODE) {
-        mainWindow.webContents.openDevTools({ mode: 'detach' });
+        win.webContents.openDevTools({ mode: 'detach' });
       }
     });
 
@@ -2893,52 +2917,52 @@ function createWindow(cliArgs = {}) {
       }
     });
 
-    mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+    win.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
       callback(true);
     });
 
-    mainWindow.webContents.on('render-process-gone', (event, details) => {
+    win.webContents.on('render-process-gone', (event, details) => {
       console.error('[RENDERER CRASH]', details);
     });
-    mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    win.webContents.on('console-message', (event, level, message, line, sourceId) => {
       const prefix = `[CONSOLE ${['debug','info','warn','error'][level] || level}]`;
       console.log(prefix, message, sourceId ? `(${sourceId}:${line})` : '');
     });
 
     if (process.platform === 'darwin') {
-      mainWindow.on('swipe', (event, direction) => {
-        if (direction === 'left') mainWindow.webContents.send('browser-swipe-back');
-        if (direction === 'right') mainWindow.webContents.send('browser-swipe-forward');
+      win.on('swipe', (event, direction) => {
+        if (direction === 'left') win.webContents.send('browser-swipe-back');
+        if (direction === 'right') win.webContents.send('browser-swipe-forward');
       });
     }
 
     setTimeout(() => {
       if (appIcon && !appIcon.isEmpty()) {
-        mainWindow.setIcon(appIcon);
+        win.setIcon(appIcon);
       } else if (fs.existsSync(iconPath)) {
-        mainWindow.setIcon(iconPath);
+        win.setIcon(iconPath);
       } else {
         console.log(`Warning: Icon file not found at ${iconPath}`);
       }
     }, 100);
 
-    registerGlobalShortcut(mainWindow);
+    registerGlobalShortcut();
 
 applyAppMenu();
-    
-    mainWindow.webContents.session.webRequest.onBeforeSendHeaders({ urls: ['*://*.tile.openstreetmap.org/*', '*://*.tile.opentopomap.org/*'] }, (details, callback) => {
+
+    win.webContents.session.webRequest.onBeforeSendHeaders({ urls: ['*://*.tile.openstreetmap.org/*', '*://*.tile.opentopomap.org/*'] }, (details, callback) => {
       details.requestHeaders['Referer'] = 'https://incognide.com';
       details.requestHeaders['User-Agent'] = 'Incognide/0.1 (https://incognide.com)';
       callback({ requestHeaders: details.requestHeaders });
     });
 
-    mainWindow.webContents.session.webRequest.onBeforeSendHeaders({ urls: ['*://*.tile.openstreetmap.org/*', '*://*.tile.opentopomap.org/*'] }, (details, callback) => {
+    win.webContents.session.webRequest.onBeforeSendHeaders({ urls: ['*://*.tile.openstreetmap.org/*', '*://*.tile.opentopomap.org/*'] }, (details, callback) => {
       details.requestHeaders['Referer'] = 'https://incognide.com';
       details.requestHeaders['User-Agent'] = 'Incognide/0.1 (https://incognide.com)';
       callback({ requestHeaders: details.requestHeaders });
     });
 
-    mainWindow.webContents.session.webRequest.onBeforeSendHeaders({ urls: ['https://*.clerk.accounts.dev/*', 'https://clerk.app.incognide.com/*'] }, (details, callback) => {
+    win.webContents.session.webRequest.onBeforeSendHeaders({ urls: ['https://*.clerk.accounts.dev/*', 'https://clerk.app.incognide.com/*'] }, (details, callback) => {
       if (!details.requestHeaders['Origin']) {
         details.requestHeaders['Origin'] = `http://localhost:${FRONTEND_PORT}`;
       }
@@ -2981,11 +3005,11 @@ applyAppMenu();
       });
     }
 
-    mainWindow.webContents.session.clearStorageData({
+    win.webContents.session.clearStorageData({
       storages: ['cookies'],
       origin: 'https://clerk.app.incognide.com'
     }).catch(() => {});
-    mainWindow.webContents.session.clearStorageData({
+    win.webContents.session.clearStorageData({
       storages: ['cookies'],
       origin: 'https://active-wombat-22.clerk.accounts.dev'
     }).catch(() => {});
@@ -2993,11 +3017,11 @@ applyAppMenu();
     const isDev = process.env.NODE_ENV === 'development' || process.argv.includes('--dev');
 
     if (isDev) {
-      mainWindow.loadURL(`http://localhost:${FRONTEND_PORT}`);
+      win.loadURL(`http://localhost:${FRONTEND_PORT}`);
     } else {
       const distDir = path.join(app.getAppPath(), 'dist');
       if (frontendServer) {
-        mainWindow.loadURL(`http://localhost:${FRONTEND_PORT}`);
+        win.loadURL(`http://localhost:${FRONTEND_PORT}`);
       } else {
         const mimeTypes = {
           '.html': 'text/html',
@@ -3162,55 +3186,55 @@ applyAppMenu();
         frontendServer.listen(FRONTEND_PORT, '127.0.0.1', () => {
           console.log(`Frontend server running at http://localhost:${FRONTEND_PORT}`);
         });
-        mainWindow.loadURL(`http://localhost:${FRONTEND_PORT}`);
+        win.loadURL(`http://localhost:${FRONTEND_PORT}`);
       }
     }
 
-    mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    win.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
       console.error('Failed to load:', errorCode, errorDescription);
     });
 
-    mainWindow.webContents.on('before-input-event', (event, input) => {
+    win.webContents.on('before-input-event', (event, input) => {
       if (input.type === 'keyDown') {
 
         if (input.control && !input.shift && !input.alt && input.key.toLowerCase() === 'tab') {
           console.log('[CYCLE-MAIN] forward');
           event.preventDefault();
-          mainWindow.webContents.send('menu-cycle-pane-forward');
+          win.webContents.send('menu-cycle-pane-forward');
           return;
         }
 
         if (input.control && input.shift && !input.alt && input.key.toLowerCase() === 'tab') {
           console.log('[CYCLE-MAIN] backward');
           event.preventDefault();
-          mainWindow.webContents.send('menu-cycle-pane-backward');
+          win.webContents.send('menu-cycle-pane-backward');
           return;
         }
 
         if (input.control && !input.shift && !input.alt && input.key.toLowerCase() === 't') {
           event.preventDefault();
-          mainWindow.webContents.send('browser-new-tab');
+          win.webContents.send('browser-new-tab');
         }
 
         if (input.control && input.shift && !input.alt && input.key.toLowerCase() === 'o') {
           event.preventDefault();
-          mainWindow.webContents.send('open-folder-picker');
+          win.webContents.send('open-folder-picker');
         }
       }
     });
 
     const cliWorkspaceArgs = { folder, bookmarks, openUrl };
 
-    mainWindow.webContents.on('did-finish-load', async () => {
+    win.webContents.on('did-finish-load', async () => {
       if (_backendStartupError) {
         await new Promise(resolve => setTimeout(resolve, 500));
-        mainWindow.webContents.send('backend:startup-error', _backendStartupError);
+        win.webContents.send('backend:startup-error', _backendStartupError);
         log('[STARTUP] Sent backend startup error notification to renderer');
       }
 
       if (blank) {
         await new Promise(resolve => setTimeout(resolve, 100));
-        mainWindow.webContents.send('blank-window');
+        win.webContents.send('blank-window');
       }
       if (folder || (bookmarks && bookmarks.length > 0) || openUrl) {
         log(`[CLI] Sending workspace args to renderer: folder=${folder}, bookmarks=${bookmarks?.length || 0}, openUrl=${openUrl}`);
@@ -3218,7 +3242,7 @@ applyAppMenu();
         await new Promise(resolve => setTimeout(resolve, 100));
 
         if (folder) {
-          mainWindow.webContents.send('cli-open-workspace', { folder });
+          win.webContents.send('cli-open-workspace', { folder });
         }
 
         if (bookmarks && bookmarks.length > 0 && folder) {
@@ -3234,25 +3258,27 @@ applyAppMenu();
               log(`[CLI] Error adding bookmark ${url}: ${err.message}`);
             }
           }
-          mainWindow.webContents.send('cli-bookmarks-added', { bookmarks, folder });
+          win.webContents.send('cli-bookmarks-added', { bookmarks, folder });
         }
 
         if (openUrl) {
           log(`[CLI] Opening URL in browser pane: ${openUrl}`);
-          mainWindow.webContents.send('open-url-in-browser', { url: openUrl });
+          win.webContents.send('open-url-in-browser', { url: openUrl });
         }
       }
 
       const pendingUrl = getPendingDeepLinkUrl();
       if (pendingUrl) {
         log(`[DEEP-LINK] Opening pending deep link URL: ${pendingUrl}`);
-        mainWindow.webContents.send('open-url-in-browser', { url: pendingUrl });
+        win.webContents.send('open-url-in-browser', { url: pendingUrl });
       }
 
-      processPendingFileOpen(mainWindow);
+      processPendingFileOpen(win);
 
       startInterceptFileWatcher();
     });
+
+    return win;
 }
 
 const { registerAll } = require('./ipc');

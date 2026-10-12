@@ -10,6 +10,14 @@ const browserViews = new Map();
 const activeDownloads = new Map();
 const sessionsWithDownloadHandler = new WeakSet();
 
+function getSenderWindow(event) {
+  const win = event.sender ? BrowserWindow.fromWebContents(event.sender) : null;
+  if (win && !win.isDestroyed()) return win;
+  const focused = BrowserWindow.getFocusedWindow();
+  if (focused && !focused.isDestroyed()) return focused;
+  return null;
+}
+
 const extensionsDir = path.join(os.homedir(), '.incognide', 'extensions');
 const extensionsConfigPath = path.join(os.homedir(), '.incognide', 'extensions.json');
 const loadedExtensions = new Map();
@@ -274,13 +282,16 @@ function register(ctx) {
   });
 
   ipcMain.handle('show-browser', async (event, { url, bounds, viewId }) => {
-    const mainWindow = getMainWindow();
+    const parentWindow = getSenderWindow(event) || getMainWindow();
     log(`[BROWSER VIEW] Received 'show-browser' for viewId: ${viewId}`);
-    if (!mainWindow) return { success: false, error: 'Main window not found' };
+    if (!parentWindow) return { success: false, error: 'Parent window not found' };
 
     if (browserViews.has(viewId)) {
         const existingState = browserViews.get(viewId);
-        mainWindow.removeBrowserView(existingState.view);
+        const previousParent = existingState.parentWindow;
+        if (previousParent && !previousParent.isDestroyed()) {
+          previousParent.removeBrowserView(existingState.view);
+        }
         if (existingState.view && !existingState.view.webContents.isDestroyed()) {
             existingState.view.webContents.destroy();
         }
@@ -315,7 +326,7 @@ function register(ctx) {
 
     newBrowserView.setBackgroundColor('#0f172a');
 
-    mainWindow.addBrowserView(newBrowserView);
+    parentWindow.addBrowserView(newBrowserView);
     newBrowserView.setBounds(finalBounds);
 
     newBrowserView.setAutoResize({
@@ -328,7 +339,8 @@ function register(ctx) {
     browserViews.set(viewId, {
       view: newBrowserView,
       bounds: finalBounds,
-      visible: true
+      visible: true,
+      parentWindow
     });
 
     const wc = newBrowserView.webContents;
@@ -356,9 +368,8 @@ function register(ctx) {
 
       if (url.includes('colab.research.google.com')) {
         log('[Browser] Opening Colab in new tab');
-        const mw = getMainWindow();
-        if (mw && !mw.isDestroyed()) {
-          mw.webContents.send('browser-open-in-new-tab', { url, disposition });
+        if (parentWindow && !parentWindow.isDestroyed()) {
+          parentWindow.webContents.send('browser-open-in-new-tab', { url, disposition });
         }
         return { action: 'deny' };
       }
@@ -368,9 +379,8 @@ function register(ctx) {
         return { action: 'allow' };
       }
 
-      const mw = getMainWindow();
-      if (mw && !mw.isDestroyed()) {
-        mw.webContents.send('browser-open-in-new-tab', { url, disposition });
+      if (parentWindow && !parentWindow.isDestroyed()) {
+        parentWindow.webContents.send('browser-open-in-new-tab', { url, disposition });
       }
       return { action: 'deny' };
     });
@@ -389,9 +399,8 @@ function register(ctx) {
         }
         handled = true;
         log('[Browser] Popup navigated to:', realUrl, '- forwarding to renderer');
-        const mw = getMainWindow();
-        if (mw && !mw.isDestroyed()) {
-          mw.webContents.send('browser-open-in-new-tab', { url: realUrl, disposition: 'new-window' });
+        if (parentWindow && !parentWindow.isDestroyed()) {
+          parentWindow.webContents.send('browser-open-in-new-tab', { url: realUrl, disposition: 'new-window' });
         }
         try { newWindow.close(); } catch (e) {}
       };
@@ -429,21 +438,25 @@ function register(ctx) {
     });
 
     wc.on('did-navigate', (event, navigatedUrl) => {
-        const mw = getMainWindow();
-        mw.webContents.send('browser-loaded', { viewId, url: navigatedUrl, title: wc.getTitle() });
+        if (parentWindow && !parentWindow.isDestroyed()) {
+          parentWindow.webContents.send('browser-loaded', { viewId, url: navigatedUrl, title: wc.getTitle() });
+        }
     });
     wc.on('did-start-loading', () => {
-        const mw = getMainWindow();
-        mw.webContents.send('browser-loading', { viewId, loading: true });
+        if (parentWindow && !parentWindow.isDestroyed()) {
+          parentWindow.webContents.send('browser-loading', { viewId, loading: true });
+        }
     });
     wc.on('page-title-updated', (e, title) => {
-        const mw = getMainWindow();
-        mw.webContents.send('browser-title-updated', { viewId, title });
+        if (parentWindow && !parentWindow.isDestroyed()) {
+          parentWindow.webContents.send('browser-title-updated', { viewId, title });
+        }
     });
     wc.on('did-stop-loading', () => {
-        const mw = getMainWindow();
-        mw.webContents.send('browser-loading', { viewId, loading: false });
-        mw.webContents.send('browser-navigation-state-updated', { viewId, canGoBack: wc.canGoBack(), canGoForward: wc.canGoForward() });
+        if (parentWindow && !parentWindow.isDestroyed()) {
+          parentWindow.webContents.send('browser-loading', { viewId, loading: false });
+          parentWindow.webContents.send('browser-navigation-state-updated', { viewId, canGoBack: wc.canGoBack(), canGoForward: wc.canGoForward() });
+        }
     });
 
     const finalURL = url.startsWith('http') ? url : `https://${url}`;
@@ -454,7 +467,7 @@ function register(ctx) {
 
   ipcMain.handle('browser-save-image', async (event, { imageUrl, currentPath }) => {
     try {
-        const mainWindow = getMainWindow();
+        const parentWindow = getSenderWindow(event) || getMainWindow();
         if (!currentPath) {
             return { success: false, error: 'No workspace directory provided' };
         }
@@ -462,7 +475,7 @@ function register(ctx) {
         const filename = path.basename(url.pathname) || 'image.png';
         const defaultPath = path.join(currentPath, filename);
 
-        const result = await dialog.showSaveDialog(mainWindow, {
+        const result = await dialog.showSaveDialog(parentWindow || undefined, {
             title: 'Save Image',
             defaultPath: defaultPath,
             filters: [
@@ -489,7 +502,7 @@ function register(ctx) {
   });
 
   ipcMain.handle('browser-save-link', async (event, { url, suggestedFilename, currentPath }) => {
-    const mainWindow = getMainWindow();
+    const parentWindow = getSenderWindow(event) || getMainWindow();
     const controller = new AbortController();
 
     try {
@@ -546,8 +559,8 @@ function register(ctx) {
             fileStream.write(chunk);
             received += chunk.length;
 
-            if (contentLength > 0 && mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send('download-progress', {
+            if (contentLength > 0 && parentWindow && !parentWindow.isDestroyed()) {
+                parentWindow.webContents.send('download-progress', {
                     filename: downloadFilename,
                     received,
                     total: contentLength,
@@ -561,8 +574,8 @@ function register(ctx) {
 
         log(`[BROWSER] Download completed: ${finalPath}`);
 
-        if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('download-complete', {
+        if (parentWindow && !parentWindow.isDestroyed()) {
+            parentWindow.webContents.send('download-complete', {
                 filename: downloadFilename,
                 path: finalPath,
                 state: 'completed'
@@ -576,8 +589,8 @@ function register(ctx) {
 
         if (err.name === 'AbortError' || err.message === 'Download cancelled') {
             log(`[BROWSER] Download cancelled: ${downloadFilename}`);
-            if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send('download-complete', {
+            if (parentWindow && !parentWindow.isDestroyed()) {
+                parentWindow.webContents.send('download-complete', {
                     filename: downloadFilename,
                     state: 'cancelled'
                 });
@@ -668,10 +681,13 @@ function register(ctx) {
 
   ipcMain.handle('update-browser-bounds', (event, { viewId, bounds }) => {
     if (browserViews.has(viewId)) {
-      const mainWindow = getMainWindow();
       const browserState = browserViews.get(viewId);
+      const parentWindow = browserState.parentWindow || getSenderWindow(event) || getMainWindow();
+      if (!parentWindow || parentWindow.isDestroyed()) {
+        return { success: false, error: 'Parent window not found' };
+      }
 
-      const winBounds = mainWindow.getBounds();
+      const winBounds = parentWindow.getBounds();
 
       const adjustedBounds = {
         x: Math.max(0, Math.round(bounds.x)),
@@ -686,7 +702,7 @@ function register(ctx) {
         )
       };
       console.log(`[BROWSER ${viewId}] Setting bounds:`, adjustedBounds);
-      console.log(`[BROWSER ${viewId}] Window size:`, mainWindow.getBounds());
+      console.log(`[BROWSER ${viewId}] Window size:`, parentWindow.getBounds());
 
       browserState.bounds = adjustedBounds;
 
@@ -699,12 +715,12 @@ function register(ctx) {
   });
 
   ipcMain.handle('hide-browser', (event, { viewId }) => {
-    const mainWindow = getMainWindow();
+    const browserState = browserViews.get(viewId);
+    const parentWindow = browserState?.parentWindow || getSenderWindow(event) || getMainWindow();
     log(`[BROWSER VIEW] Received 'hide-browser' for viewId: ${viewId}`);
-    if (browserViews.has(viewId) && mainWindow && !mainWindow.isDestroyed()) {
+    if (browserViews.has(viewId) && parentWindow && !parentWindow.isDestroyed()) {
         log(`[BROWSER VIEW] Removing and destroying BrowserView for ${viewId}`);
-        const browserState = browserViews.get(viewId);
-        mainWindow.removeBrowserView(browserState.view);
+        parentWindow.removeBrowserView(browserState.view);
         browserState.view.webContents.destroy();
         browserViews.delete(viewId);
         return { success: true };
