@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, GitBranch, RotateCcw, Cherry, AlertTriangle, Globe } from 'lucide-react';
+import { RefreshCw, GitBranch, RotateCcw, Cherry, AlertTriangle, Globe, Trash2, Search, X } from 'lucide-react';
 import GitForestPanel from './GitForestPanel';
 
 interface GitPaneProps {
@@ -26,6 +26,8 @@ const GitPane: React.FC<GitPaneProps> = ({ nodeId, currentPath, openFileDiffPane
     const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
     const [cherryPickSource, setCherryPickSource] = useState<string | null>(null);
     const [cherryPickSourceCommits, setCherryPickSourceCommits] = useState<any[]>([]);
+    const [branchFilter, setBranchFilter] = useState('');
+    const [checkoutByName, setCheckoutByName] = useState('');
 
     const api = (window as any).api;
 
@@ -388,7 +390,17 @@ const GitPane: React.FC<GitPaneProps> = ({ nodeId, currentPath, openFileDiffPane
                                             </div>
                                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 flex-shrink-0">
                                                 <button onClick={() => gitStageFile(file.path)} className="text-green-400 hover:text-green-300 px-1.5" title="Stage file">Stage</button>
-                                                <button onClick={() => { if (confirm(`Discard changes to ${file.path}?`)) gitDiscardFile(file.path); }} className="text-red-400 hover:text-red-300 px-1.5" title="Discard changes">Discard</button>
+                                                {file.isUntracked ? (
+                                                    <button
+                                                        onClick={() => { if (confirm(`Delete untracked file "${file.path}"? This cannot be undone.`)) api?.gitRmUntracked?.(currentPath, file.path).then(loadGitStatus); }}
+                                                        className="text-pink-400 hover:text-pink-300 px-1.5 flex items-center gap-1"
+                                                        title="Delete untracked file"
+                                                    >
+                                                        <Trash2 size={12} /> Delete
+                                                    </button>
+                                                ) : (
+                                                    <button onClick={() => { if (confirm(`Discard changes to ${file.path}?`)) gitDiscardFile(file.path); }} className="text-red-400 hover:text-red-300 px-1.5" title="Discard changes">Discard</button>
+                                                )}
                                             </div>
                                         </div>
                                     ))}
@@ -460,20 +472,70 @@ const GitPane: React.FC<GitPaneProps> = ({ nodeId, currentPath, openFileDiffPane
                         )}
                     </div>
                 ) : activeTab === 'branches' ? (
+                    (() => {
+                        const filter = branchFilter.toLowerCase();
+                        const localBranches = (gitBranches?.all || [])
+                            .filter((b: string) => !b.startsWith('remotes/'))
+                            .filter((b: string) => b.toLowerCase().includes(filter));
+                        const filteredRemoteBranches = (gitBranches?.all || [])
+                            .filter((b: string) => b.startsWith('remotes/'))
+                            .filter((b: string) => b.toLowerCase().includes(filter));
 
-                    <div className="space-y-4">
+                        return (
+                            <div className="space-y-4">
+                                <div className="flex gap-2">
+                                    <input type="text" placeholder="New branch name..." value={gitNewBranchName} onChange={(e) => setGitNewBranchName(e.target.value)} className="flex-1 px-3 py-2 text-sm theme-bg-secondary border theme-border rounded-lg" />
+                                    <button onClick={gitCreateBranch} disabled={!gitNewBranchName.trim()} className="px-4 py-2 text-sm bg-purple-600 hover:bg-purple-500 disabled:opacity-50 rounded-lg">Create</button>
+                                </div>
+
                         <div className="flex gap-2">
-                            <input type="text" placeholder="New branch name..." value={gitNewBranchName} onChange={(e) => setGitNewBranchName(e.target.value)} className="flex-1 px-3 py-2 text-sm theme-bg-secondary border theme-border rounded-lg" />
-                            <button onClick={gitCreateBranch} disabled={!gitNewBranchName.trim()} className="px-4 py-2 text-sm bg-purple-600 hover:bg-purple-500 disabled:opacity-50 rounded-lg">Create</button>
+                            <div className="relative flex-1">
+                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                                <input
+                                    type="text"
+                                    placeholder="Filter branches..."
+                                    value={branchFilter}
+                                    onChange={(e) => setBranchFilter(e.target.value)}
+                                    className="w-full pl-9 pr-8 py-2 text-sm theme-bg-secondary border theme-border rounded-lg"
+                                />
+                                {branchFilter && (
+                                    <button
+                                        onClick={() => setBranchFilter('')}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                placeholder="Checkout branch by name..."
+                                value={checkoutByName}
+                                onChange={(e) => setCheckoutByName(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && checkoutByName.trim() && gitCheckoutBranch(checkoutByName.trim())}
+                                className="flex-1 px-3 py-2 text-sm theme-bg-secondary border theme-border rounded-lg"
+                            />
+                            <button
+                                onClick={() => checkoutByName.trim() && gitCheckoutBranch(checkoutByName.trim())}
+                                disabled={!checkoutByName.trim() || gitLoading}
+                                className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg"
+                            >
+                                Checkout
+                            </button>
                         </div>
 
                         <div>
                             <div className="text-xs font-medium theme-text-muted mb-2 flex items-center gap-2">
                                 <span>Local Branches</span>
-                                <span className="text-purple-400">({gitBranches?.all?.filter((b: string) => !b.startsWith('remotes/')).length || 0})</span>
+                                <span className="text-purple-400">({localBranches.length})</span>
                             </div>
-                            <div className="space-y-1">
-                                {gitBranches?.all?.filter((branch: string) => !branch.startsWith('remotes/')).map((branch: string) => (
+                            <div className="space-y-1 max-h-48 overflow-y-auto">
+                                {localBranches.length === 0 ? (
+                                    <div className="text-xs theme-text-muted">No local branches match</div>
+                                ) : localBranches.map((branch: string) => (
                                     <div key={branch} className={`flex items-center justify-between p-2 rounded text-sm group ${branch === gitBranches.current ? 'bg-purple-900/30 border border-purple-500/30' : 'hover:bg-white/5'}`}>
                                         <div className="flex items-center gap-2">
                                             {branch === gitBranches.current && <span className="text-purple-400">●</span>}
@@ -490,14 +552,14 @@ const GitPane: React.FC<GitPaneProps> = ({ nodeId, currentPath, openFileDiffPane
                             </div>
                         </div>
 
-                        {gitBranches?.all?.some((b: string) => b.startsWith('remotes/')) && (
+                        {filteredRemoteBranches.length > 0 && (
                             <div>
                                 <div className="text-xs font-medium theme-text-muted mb-2 flex items-center gap-2">
                                     <span>Remote Branches</span>
-                                    <span className="text-orange-400">({gitBranches?.all?.filter((b: string) => b.startsWith('remotes/')).length || 0})</span>
+                                    <span className="text-orange-400">({filteredRemoteBranches.length})</span>
                                 </div>
                                 <div className="space-y-1 max-h-48 overflow-y-auto">
-                                    {gitBranches?.all?.filter((branch: string) => branch.startsWith('remotes/')).map((branch: string) => (
+                                    {filteredRemoteBranches.map((branch: string) => (
                                         <div key={branch} className="flex items-center justify-between p-2 rounded text-sm group hover:bg-white/5">
                                             <span className="theme-text-muted text-xs">{branch.replace('remotes/', '')}</span>
                                             <button onClick={() => gitCheckoutBranch(branch.replace('remotes/origin/', ''))} className="text-xs text-blue-400 hover:text-blue-300 opacity-0 group-hover:opacity-100">Checkout</button>
@@ -527,6 +589,8 @@ const GitPane: React.FC<GitPaneProps> = ({ nodeId, currentPath, openFileDiffPane
                             </div>
                         )}
                     </div>
+                );
+            })()
                 ) : activeTab === 'history' ? (
 
                     <div className="flex flex-col gap-3 h-full min-h-[400px]">

@@ -5122,6 +5122,18 @@ onDragStart={(e) => {
                                                 >
                                                     <Plus size={10} className="text-teal-400" />
                                                 </button>
+                                                <button
+                                                    onClick={async (e) => {
+                                                        e.stopPropagation();
+                                                        if (!confirm(`Delete untracked file "${file.path}"? This cannot be undone.`)) return;
+                                                        await (window as any).api?.gitRmUntracked?.(currentPath, file.path);
+                                                        loadGitStatus();
+                                                    }}
+                                                    className="p-0.5 hover:bg-pink-500/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    title="Delete untracked file"
+                                                >
+                                                    <Trash size={10} className="text-pink-400" />
+                                                </button>
                                             </div>
                                         </div>
                                     ))}
