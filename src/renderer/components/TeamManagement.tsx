@@ -5,14 +5,12 @@ import {
 } from 'lucide-react';
 import { Input, TeamManagementShell, TeamSelector, type TeamSelectorTeam } from 'npcts';
 import yaml from 'js-yaml';
-import SmokestackIcon from './icons/SmokestackIcon';
 import MemoryIcon from './icons/MemoryIcon';
 import KgIcon from './icons/KgIcon';
 
 import CtxEditor from './CtxEditor';
 import NPCTeamMenu from './NPCTeamMenu';
 import JinxMenu from './JinxMenu';
-import CronDaemonPanel from './CronDaemonPanel';
 import MemoryManagement from './MemoryManagement';
 import ModelManager from './ModelManager';
 import StoreRegistryPanel from './StoreRegistryPanel';
@@ -40,7 +38,7 @@ interface TeamManagementProps {
     availableModels?: any[];
 }
 
-type TabId = 'context' | 'npcs' | 'jinxes' | 'knowledge' | 'cron' | 'models' | 'llm-models';
+type TabId = 'context' | 'npcs' | 'jinxes' | 'knowledge' | 'models' | 'llm-models';
 
 const SqlModelsContent = ({ currentPath, teamKey, npcList = [], jinxList = [] }: { currentPath: string; teamKey?: string; npcList?: any[]; jinxList?: any[] }) => {
     const [models, setModels] = useState<any[]>([]);
@@ -981,7 +979,6 @@ const TeamManagement: React.FC<TeamManagementProps> = ({
         { id: 'npcs', label: 'Agents', icon: <Users size={16} /> },
         { id: 'jinxes', label: 'Jinxes', icon: <Zap size={16} /> },
         { id: 'knowledge', label: 'Knowledge', icon: <KgIcon size={16} /> },
-        { id: 'cron', label: 'Scheduler', icon: <SmokestackIcon size={16} /> },
     ];
 
     const teamSelector = (
@@ -1012,7 +1009,7 @@ const TeamManagement: React.FC<TeamManagementProps> = ({
             embedded={embedded}
         >
             <div className="flex-1 flex flex-col overflow-hidden">
-                {(activeTab === 'cron' || activeTab === 'llm-models' || activeTab === 'knowledge') ? null : (
+                {(activeTab === 'llm-models' || activeTab === 'knowledge') ? null : (
                     <div className="flex-1 overflow-hidden p-6 flex flex-col">
                         {activeTab === 'context' && (
                             <CtxEditor
@@ -1052,16 +1049,6 @@ const TeamManagement: React.FC<TeamManagementProps> = ({
                             />
                         )}
                     </div>
-                )}
-                {activeTab === 'cron' && (
-                    <CronDaemonPanel
-                        isOpen={true}
-                        onClose={() => {}}
-                        currentPath={currentPath || effectiveTeamPath}
-                        npcList={npcList}
-                        jinxList={jinxList}
-                        isPane={true}
-                    />
                 )}
                 {activeTab === 'llm-models' && (
                     <div className="flex-1 flex flex-col overflow-hidden">
