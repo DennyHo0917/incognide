@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   RefreshCw, AlertCircle, X, Loader, Save, Play, Trash2, ChevronDown,
-  ChevronUp, Clock, Plus, FileText, Terminal, Activity
+  ChevronUp, Clock, Plus, Terminal, Activity
 } from 'lucide-react';
 import SmokestackIcon from './icons/SmokestackIcon';
 
@@ -69,178 +69,6 @@ interface JobFormProps {
   job: JobConfig;
   onChange: (patch: Partial<JobConfig>) => void;
 }
-
-const FinetuneForm: React.FC<JobFormProps & { npcList?: any[] }> = ({ job, onChange, npcList }) => {
-  const p = job.payload || {};
-  return (
-    <div className="space-y-2">
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[10px] theme-text-secondary block">Source</label>
-          <select
-            value={p.source || 'memories'}
-            onChange={e => onChange({ payload: { ...p, source: e.target.value } })}
-            className="w-full text-xs px-1 py-1 rounded theme-border theme-bg-secondary"
-          >
-            <option value="memories">Memories</option>
-            <option value="knowledge">Knowledge</option>
-            <option value="both">Both</option>
-          </select>
-        </div>
-        <div>
-          <label className="text-[10px] theme-text-secondary block">NPC</label>
-          <input
-            type="text"
-            list="npc-suggestions"
-            value={p.npc_name || ''}
-            onChange={e => onChange({ payload: { ...p, npc_name: e.target.value } })}
-            className="w-full text-xs px-2 py-1 rounded theme-border theme-bg-secondary"
-            placeholder="all"
-          />
-          <datalist id="npc-suggestions">
-            {(npcList || []).map((n: any) => (
-              <option key={n.name} value={n.name} />
-            ))}
-          </datalist>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[10px] theme-text-secondary block">Base Model</label>
-          <input
-            type="text"
-            value={p.base_model || ''}
-            onChange={e => onChange({ payload: { ...p, base_model: e.target.value } })}
-            className="w-full text-xs px-2 py-1 rounded theme-border theme-bg-secondary"
-            placeholder="llama3"
-          />
-        </div>
-        <div>
-          <label className="text-[10px] theme-text-secondary block">Output Name</label>
-          <input
-            type="text"
-            value={p.output_name || ''}
-            onChange={e => onChange({ payload: { ...p, output_name: e.target.value } })}
-            className="w-full text-xs px-2 py-1 rounded theme-border theme-bg-secondary"
-            placeholder="my-finetuned-model"
-          />
-        </div>
-      </div>
-      <div>
-        <label className="text-[10px] theme-text-secondary block">Instructions to Generate</label>
-        <input
-          type="number"
-          min={1}
-          max={10000}
-          value={p.instruction_count ?? 100}
-          onChange={e => onChange({ payload: { ...p, instruction_count: parseInt(e.target.value) || 0 } })}
-          className="w-full text-xs px-2 py-1 rounded theme-border theme-bg-secondary"
-        />
-      </div>
-    </div>
-  );
-};
-
-const KGEvolutionForm: React.FC<JobFormProps & { currentPath?: string; discoveredStores?: any[] }> = ({ job, onChange, currentPath, discoveredStores }) => {
-  const p = job.payload || {};
-  const selections = p.store_selections || [];
-
-  const toggleStore = (storePath: string) => {
-    const next = selections.includes(storePath)
-      ? selections.filter((s: string) => s !== storePath)
-      : [...selections, storePath];
-    onChange({ payload: { ...p, store_selections: next } });
-  };
-
-  return (
-    <div className="space-y-2">
-      {discoveredStores && discoveredStores.length > 0 && (
-        <div className="border theme-border rounded p-2 space-y-1.5 max-h-52 overflow-y-auto">
-          <div className="text-[10px] theme-text-secondary font-semibold flex items-center gap-1">
-            <Activity size={10} className="text-green-400" />
-            Discovered Knowledge Stores
-          </div>
-          {discoveredStores.map((store: any) => (
-            <label key={store.path} className="flex flex-col cursor-pointer hover:bg-white/5 rounded px-1 py-0.5">
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={selections.includes(store.path)}
-                  onChange={() => toggleStore(store.path)}
-                  className="w-3 h-3"
-                />
-                <span className="text-[10px] theme-text-primary truncate flex-1" title={store.path}>{store.directory}</span>
-                <span className="text-[10px] theme-text-muted tabular-nums">
-                  {store.memoryCount}m / {store.knowledgeCount}k / {store.conceptCount}c
-                </span>
-              </div>
-              {(store.lastExtractedAt || store.lastEvolvedAt) && (
-                <div className="text-[9px] theme-text-muted pl-5 tabular-nums">
-                  {store.lastExtractedAt && <span>extracted: {new Date(store.lastExtractedAt).toLocaleString()} · </span>}
-                  {store.lastEvolvedAt && <span>evolved: {new Date(store.lastEvolvedAt).toLocaleString()}</span>}
-                </div>
-              )}
-            </label>
-          ))}
-        </div>
-      )}
-      {!discoveredStores?.length && currentPath && (
-        <div className="text-[10px] theme-text-muted italic">No .knowledge.yaml files found under {currentPath}</div>
-      )}
-      <div className="flex gap-4 flex-wrap">
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={!!p.include_memories}
-            onChange={e => onChange({ payload: { ...p, include_memories: e.target.checked } })}
-            className="w-3 h-3"
-          />
-          <span className="text-xs theme-text-secondary">Include Memories</span>
-        </label>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={!!p.include_knowledge}
-            onChange={e => onChange({ payload: { ...p, include_knowledge: e.target.checked } })}
-            className="w-3 h-3"
-          />
-          <span className="text-xs theme-text-secondary">Include Knowledge</span>
-        </label>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={!!p.full_rebuild}
-            onChange={e => onChange({ payload: { ...p, full_rebuild: e.target.checked } })}
-            className="w-3 h-3"
-          />
-          <span className="text-xs theme-text-secondary">Full Rebuild</span>
-        </label>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[10px] theme-text-secondary block">Model (optional)</label>
-          <input
-            type="text"
-            value={p.model || ''}
-            onChange={e => onChange({ payload: { ...p, model: e.target.value } })}
-            className="w-full text-xs px-2 py-1 rounded theme-border theme-bg-secondary"
-            placeholder="team default"
-          />
-        </div>
-        <div>
-          <label className="text-[10px] theme-text-secondary block">Provider (optional)</label>
-          <input
-            type="text"
-            value={p.provider || ''}
-            onChange={e => onChange({ payload: { ...p, provider: e.target.value } })}
-            className="w-full text-xs px-2 py-1 rounded theme-border theme-bg-secondary"
-            placeholder="team default"
-          />
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const GenericJobForm: React.FC<JobFormProps & { npcList?: any[]; jinxList?: any[] }> = ({ job, onChange, npcList, jinxList }) => {
   const p = job.payload || {};
@@ -408,24 +236,9 @@ const CronDaemonPanel: React.FC<CronDaemonPanelProps> = ({
   const [logsMap, setLogsMap] = useState<Record<string, any[]>>({});
   const [showAdd, setShowAdd] = useState(false);
   const [newJobName, setNewJobName] = useState('');
-  const [discoveredStores, setDiscoveredStores] = useState<any[]>([]);
-
-  const scanStores = useCallback(async () => {
-    if (!currentPath || !api?.scanKnowledgeStores) return;
-    try {
-      const res = await api.scanKnowledgeStores(currentPath);
-      setDiscoveredStores(res?.stores || []);
-    } catch {}
-  }, [currentPath, api]);
-
-  useEffect(() => { scanStores(); }, [scanStores]);
 
   const defaultPayload = (type: string) => {
-    switch (type) {
-      case 'finetune_instruction': return { source: 'memories', npc_name: '', base_model: '', output_name: '', instruction_count: 100 };
-      case 'knowledge_graph': return { store_selections: [], include_memories: true, include_knowledge: true, full_rebuild: false, model: '', provider: '' };
-      default: return { command: '', npcName: '', jinxName: '' };
-    }
+    return { command: '', npcName: '', jinxName: '' };
   };
 
   const loadJobs = useCallback(async () => {
@@ -433,33 +246,8 @@ const CronDaemonPanel: React.FC<CronDaemonPanelProps> = ({
     try {
       const r = await api?.scheduledJobList?.();
       const list: any[] = r?.jobs || r || [];
-      const ensure = (id: string, name: string, type: string, schedule: string) => {
-        const existing = list.find((j: any) => j.job_type === type || j.id === id);
-        if (existing) {
-          let payload = existing.payload;
-          if (typeof payload === 'string') {
-            try { payload = JSON.parse(payload); } catch { payload = {}; }
-          }
-          return {
-            id: existing.id || id,
-            name: existing.name || name,
-            enabled: existing.enabled === 1 || existing.enabled === true,
-            schedule: existing.schedule || schedule,
-            payload: { ...defaultPayload(type), ...(payload || {}) },
-            job_type: existing.job_type || type,
-            last_run_at: existing.last_run_at,
-          };
-        }
-        return {
-          id, name, enabled: false, schedule,
-          payload: defaultPayload(type),
-          job_type: type,
-        };
-      };
 
       const merged = [
-        ensure('finetune', 'Fine-tune', 'finetune_instruction', '0 2 * * 0'),
-        ensure('knowledge_graph', 'Knowledge Graph Evolution', 'knowledge_graph', '0 3 * * *'),
         ...list
           .filter((j: any) => !['finetune_instruction', 'knowledge_graph'].includes(j.job_type))
           .map((j: any) => {
@@ -607,14 +395,7 @@ const CronDaemonPanel: React.FC<CronDaemonPanelProps> = ({
   };
 
   const renderJobForm = (job: JobConfig, idx: number) => {
-    switch (job.job_type) {
-      case 'finetune_instruction':
-        return <FinetuneForm job={job} onChange={patch => updateJob(idx, patch)} npcList={npcList} />;
-      case 'knowledge_graph':
-        return <KGEvolutionForm job={job} onChange={patch => updateJob(idx, patch)} currentPath={currentPath} discoveredStores={discoveredStores} />;
-      default:
-        return <GenericJobForm job={job} onChange={patch => updateJob(idx, patch)} npcList={npcList} jinxList={jinxList} />;
-    }
+    return <GenericJobForm job={job} onChange={patch => updateJob(idx, patch)} npcList={npcList} jinxList={jinxList} />;
   };
 
   const content = (
@@ -649,9 +430,7 @@ const CronDaemonPanel: React.FC<CronDaemonPanelProps> = ({
             <div key={job.id} className="border theme-border rounded-lg p-3 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  {job.job_type === 'finetune_instruction' && <FileText size={14} className="text-purple-400" />}
-                  {job.job_type === 'knowledge_graph' && <Activity size={14} className="text-green-400" />}
-                  {job.job_type !== 'finetune_instruction' && job.job_type !== 'knowledge_graph' && <Terminal size={14} className="text-blue-400" />}
+                  <Terminal size={14} className="text-blue-400" />
                   <span className="font-medium text-sm">{job.name}</span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 theme-text-muted font-mono">{humanizeCron(job.schedule)}</span>
                 </div>
