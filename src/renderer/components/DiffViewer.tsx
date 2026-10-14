@@ -1,6 +1,7 @@
 import { getFileName } from './utils';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { GitBranch, RefreshCw, Check, X, AlertTriangle, SplitSquareHorizontal, AlignJustify, ChevronDown, ChevronUp, GitMerge, Undo2, ArrowLeft, ArrowRight, Combine, Save } from 'lucide-react';
+import { diffLines, diffToSideLines } from '../utils/diff';
 import CodeMirror from '@uiw/react-codemirror';
 import { javascript } from '@codemirror/lang-javascript';
 import { python } from '@codemirror/lang-python';
@@ -271,54 +272,8 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
     ].flat(), [langExt]);
 
     const computeDiff = useMemo(() => {
-        const origLines = (originalContent || '').split('\n');
-        const modLines = (modifiedContent || '').split('\n');
-
-        const origSet = new Set(origLines);
-        const modSet = new Set(modLines);
-
-        const leftLines: { line: string; type: 'removed' | 'unchanged' | 'empty'; lineNum: number }[] = [];
-        const rightLines: { line: string; type: 'added' | 'unchanged' | 'empty'; lineNum: number }[] = [];
-
-        let li = 0, ri = 0;
-        let leftLineNum = 1, rightLineNum = 1;
-
-        while (li < origLines.length || ri < modLines.length) {
-            const origLine = li < origLines.length ? origLines[li] : null;
-            const modLine = ri < modLines.length ? modLines[ri] : null;
-
-            if (origLine === modLine) {
-
-                leftLines.push({ line: origLine || '', type: 'unchanged', lineNum: leftLineNum++ });
-                rightLines.push({ line: modLine || '', type: 'unchanged', lineNum: rightLineNum++ });
-                li++;
-                ri++;
-            } else if (origLine !== null && !modSet.has(origLine)) {
-
-                leftLines.push({ line: origLine, type: 'removed', lineNum: leftLineNum++ });
-                rightLines.push({ line: '', type: 'empty', lineNum: 0 });
-                li++;
-            } else if (modLine !== null && !origSet.has(modLine)) {
-
-                leftLines.push({ line: '', type: 'empty', lineNum: 0 });
-                rightLines.push({ line: modLine, type: 'added', lineNum: rightLineNum++ });
-                ri++;
-            } else {
-
-                if (origLine !== null) {
-                    leftLines.push({ line: origLine, type: 'removed', lineNum: leftLineNum++ });
-                    rightLines.push({ line: '', type: 'empty', lineNum: 0 });
-                    li++;
-                }
-                if (modLine !== null && li >= origLines.length) {
-                    leftLines.push({ line: '', type: 'empty', lineNum: 0 });
-                    rightLines.push({ line: modLine, type: 'added', lineNum: rightLineNum++ });
-                    ri++;
-                }
-            }
-        }
-
-        return { leftLines, rightLines };
+        const ops = diffLines(originalContent || '', modifiedContent || '');
+        return diffToSideLines(ops);
     }, [originalContent, modifiedContent]);
 
     const handleScroll = useCallback((side: 'left' | 'right') => {

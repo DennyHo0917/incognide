@@ -1,5 +1,7 @@
 const simpleGit = require('simple-git');
 const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 function register(ctx) {
   const { ipcMain, log } = ctx;
@@ -373,6 +375,18 @@ function register(ctx) {
       return { success: true };
     } catch (err) {
       console.error(`[Git] Error discarding file:`, err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('gitRmUntracked', async (event, repoPath, filePath) => {
+    log(`[Git] Removing untracked file ${filePath} in ${repoPath}`);
+    try {
+      const fullPath = path.isAbsolute(filePath) ? filePath : path.join(repoPath, filePath);
+      await fs.promises.unlink(fullPath);
+      return { success: true };
+    } catch (err) {
+      console.error(`[Git] Error removing untracked file:`, err);
       return { success: false, error: err.message };
     }
   });
