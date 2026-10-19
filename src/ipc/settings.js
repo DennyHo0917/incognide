@@ -2567,6 +2567,7 @@ function register(ctx) {
     { provider: 'cohere', envVar: 'COHERE_API_KEY', baseUrl: 'https://api.cohere.com/v1', displayName: 'Cohere' },
     { provider: 'deepinfra', envVar: 'DEEPINFRA_API_KEY', baseUrl: 'https://api.deepinfra.com/v1/openai', displayName: 'DeepInfra' },
     { provider: 'deepseek', envVar: 'DEEPSEEK_API_KEY', baseUrl: 'https://api.deepseek.com/v1', displayName: 'DeepSeek' },
+    { provider: 'demonroute', envVar: 'DEMONROUTE_API_KEY', baseUrl: 'https://api.demonroute.com/v1', displayName: 'DemonRoute' },
     { provider: 'fireworks_ai', envVar: 'FIREWORKS_API_KEY', baseUrl: 'https://api.fireworks.ai/inference/v1', displayName: 'Fireworks AI' },
     { provider: 'gemini', envVar: 'GEMINI_API_KEY', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', displayName: 'Google Gemini' },
     { provider: 'groq', envVar: 'GROQ_API_KEY', baseUrl: 'https://api.groq.com/openai/v1', displayName: 'Groq' },
