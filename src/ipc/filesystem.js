@@ -1097,11 +1097,14 @@ function register(ctx) {
 
         const itemPath = path.join(currentPath, item.name);
         if (item.isDirectory()) {
+          let mtime = 0;
+          try { mtime = (await fsPromises.stat(itemPath)).mtimeMs; } catch {}
           if (depth < maxDepth) {
             try {
               result[item.name] = {
                 type: 'directory',
                 path: itemPath,
+                mtime,
                 children: await readDirRecursive(itemPath, depth + 1)
               };
             } catch (err) {
@@ -1110,6 +1113,7 @@ function register(ctx) {
                 result[item.name] = {
                   type: 'directory',
                   path: itemPath,
+                  mtime,
                   children: {},
                   inaccessible: true
                 };
@@ -1121,6 +1125,7 @@ function register(ctx) {
             result[item.name] = {
               type: 'directory',
               path: itemPath,
+              mtime,
               children: {}
             };
           }

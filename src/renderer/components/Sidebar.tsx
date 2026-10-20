@@ -3923,7 +3923,7 @@ const renderFolderList = (structure) => {
             const bIsDir = b.type === 'directory';
 
             if (aHidden !== bHidden) return aHidden ? 1 : -1;
-            if (aIsDir !== bIsDir) return aIsDir ? -1 : 1;
+            if (fileSort !== 'modified' && aIsDir !== bIsDir) return aIsDir ? -1 : 1;
 
             if (fileSort === 'modified') {
                 const aTime = a.mtime || 0;
