@@ -856,7 +856,7 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ currentPath, embedded = t
             <div className="flex items-center justify-between px-4 py-3 border-b theme-border flex-shrink-0">
                 <div className="flex items-center gap-3">
                     <Zap size={18} className="text-purple-400" />
-                    <h2 className="font-semibold theme-text-primary">Skills & Jinxes</h2>
+                    <h2 className="font-semibold theme-text-primary">Skills & Tools</h2>
                     <span className="text-xs theme-text-muted">
                         {totalCount} total
                     </span>

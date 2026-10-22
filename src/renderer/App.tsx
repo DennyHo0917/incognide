@@ -6,9 +6,17 @@ import SetupWizard from './components/SetupWizard';
 import AppTutorial from './components/AppTutorial';
 import KnowledgeOnboarding from './components/KnowledgeOnboarding';
 import BackendErrorBanner from './components/BackendErrorBanner';
+import Manager from './components/Manager';
 import { AuthProvider, NoClerkAuthProvider } from './components/AuthProvider';
 import { AiFeatureProvider } from './components/AiFeatureContext';
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
+
+const isManagerRoute = () => {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return window.location.hash === '#manager' || window.location.pathname === '/manager' || params.has('manager');
+  } catch { return false; }
+};
 
 const AuthWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   if (!CLERK_PUBLISHABLE_KEY) {
@@ -165,6 +173,18 @@ const App: React.FC = () => {
     return (
       <AuthWrapper>
         <SetupWizard onComplete={handleSetupComplete} />
+      </AuthWrapper>
+    );
+  }
+
+  if (isManagerRoute()) {
+    return (
+      <AuthWrapper>
+        <AiFeatureProvider>
+          <div className="h-screen w-screen flex flex-col overflow-hidden theme-bg-primary theme-text-primary">
+            <Manager />
+          </div>
+        </AiFeatureProvider>
       </AuthWrapper>
     );
   }

@@ -2,10 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     MessageSquare, Terminal, Globe, FileText, File as FileIcon,
     BrainCircuit, Bot, Zap, Users, Database, ChevronDown,
-    GitBranch, Image, AlertCircle, RefreshCw, Check, Columns, Layers,
-    Power, ScrollText, Server, Sun, Moon, User, X, Download, FolderOpen, ExternalLink
+    GitBranch, Image, Columns, Layers,
+    Server, Sun, Moon, X, Download, FolderOpen, ExternalLink, LayoutGrid, RefreshCw
 } from 'lucide-react';
-import npcPythonLogo from '../../assets/npc-python.png';
 import npcLogo from '../../assets/icon.png';
 import { useAiEnabled } from './AiFeatureContext';
 import { SshConnection } from '../hooks/useRemoteConnections';
@@ -28,14 +27,9 @@ interface StatusBarProps {
     sidebarWidth?: number;
     topBarCollapsed?: boolean;
     onExpandTopBar?: () => void;
-    appVersion?: string;
-    updateAvailable?: { latestVersion: string; releaseUrl: string } | null;
-    onCheckForUpdates?: () => Promise<void>;
     onCollapse?: () => void;
     openMode?: 'pane' | 'tab';
     onToggleOpenMode?: () => void;
-    onOpenLogsViewer?: () => void;
-    createBackendPane?: () => void;
     activeConnection?: { host: string } | null;
     sshConnections?: SshConnection[];
     onConnectSsh?: (config: Omit<SshConnection, 'isConnected' | 'currentPath'>) => Promise<{ success: boolean; error?: string }>;
@@ -53,7 +47,6 @@ interface StatusBarProps {
     SEARCH_SCOPES: Record<string, string>;
     isDarkMode?: boolean;
     toggleTheme?: () => void;
-    onOpenAccount?: () => void;
     onOpenNewWindow?: () => void;
     createNewTerminal?: (shellType: string) => void;
     createNewConversation?: (opts?: { contentType?: 'chat' | 'agent'; npc?: string; model?: string }) => void;
@@ -61,9 +54,34 @@ interface StatusBarProps {
     activeDownloads?: Record<string, any>;
     onOpenDownloadedFile?: (path: string) => void;
     onDismissDownload?: (filename: string) => void;
+    pomodoroActive?: boolean;
+    pomodoroPhase?: 'work' | 'break';
+    pomodoroSecondsLeft?: number;
+    onTogglePomodoro?: () => void;
+    onOpenPomodoroConfig?: () => void;
+    pomodoroConfigOpen?: boolean;
+    pomodoroWorkMins?: number;
+    pomodoroBreakMins?: number;
+    onPomodoroWorkChange?: (mins: number) => void;
+    onPomodoroBreakChange?: (mins: number) => void;
+    pomodoroSchedule?: Array<{ days: number[]; startHour: number; startMinute: number }>;
+    onPomodoroScheduleChange?: (schedule: Array<{ days: number[]; startHour: number; startMinute: number }>) => void;
 }
 
-type BackendStatus = 'ok' | 'unhealthy' | 'unreachable' | 'restarting' | 'unknown';
+const tomatoIcon = (active: boolean, phase: 'work' | 'break') => (
+    <svg width="16" height="16" viewBox="0 0 24 24">
+        <ellipse cx="12" cy="14" rx="9" ry="8" fill={active ? (phase === 'work' ? '#ef4444' : '#22c55e') : '#9ca3af'} />
+        <ellipse cx="9" cy="12" rx="3" ry="2.5" fill="rgba(255,255,255,0.2)" />
+        <path d="M12 6 Q12 3 10 2" stroke="#22c55e" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+        <path d="M12 5 Q15 3 17 4 Q15 5.5 12 5" fill="#22c55e" />
+    </svg>
+);
+
+const formatPomodoroTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+};
 
 const StatusBar: React.FC<StatusBarProps> = ({
     paneItems,
@@ -73,14 +91,9 @@ const StatusBar: React.FC<StatusBarProps> = ({
     sidebarCollapsed = false,
     onExpandSidebar,
     sidebarWidth,
-    appVersion,
-    updateAvailable,
-    onCheckForUpdates,
     onCollapse,
     openMode = 'pane',
     onToggleOpenMode,
-    onOpenLogsViewer,
-    createBackendPane,
     activeConnection,
     sshConnections,
     onConnectSsh,
@@ -98,7 +111,6 @@ const StatusBar: React.FC<StatusBarProps> = ({
     SEARCH_SCOPES,
     isDarkMode,
     toggleTheme,
-    onOpenAccount,
     onOpenNewWindow,
     createNewTerminal,
     createNewConversation,
@@ -106,134 +118,48 @@ const StatusBar: React.FC<StatusBarProps> = ({
     activeDownloads = {},
     onOpenDownloadedFile,
     onDismissDownload,
+    pomodoroActive = false,
+    pomodoroPhase = 'work',
+    pomodoroSecondsLeft = 25 * 60,
+    onTogglePomodoro,
+    onOpenPomodoroConfig,
+    pomodoroConfigOpen = false,
+    pomodoroWorkMins = 25,
+    pomodoroBreakMins = 5,
+    onPomodoroWorkChange,
+    onPomodoroBreakChange,
+    pomodoroSchedule = [],
+    onPomodoroScheduleChange,
 }) => {
     const buttonGroupWidth = sidebarCollapsed ? 192 : (sidebarWidth || 192);
     const aiEnabled = useAiEnabled();
-    const [checkingUpdates, setCheckingUpdates] = useState(false);
-    const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
-    const [showQuitPrompt, setShowQuitPrompt] = useState(false);
     const [downloadPopoverOpen, setDownloadPopoverOpen] = useState(false);
-    const [showBackendMenu, setShowBackendMenu] = useState(false);
     const [sshMenuOpen, setSshMenuOpen] = useState(false);
     const [passwordPromptId, setPasswordPromptId] = useState<string | null>(null);
     const [passwordInput, setPasswordInput] = useState('');
-    const [clockMode, setClockMode] = useState<'analog' | 'digital' | 'datetime'>(() => (localStorage.getItem('incognide_clockMode') as any) || 'digital');
     const [currentTime, setCurrentTime] = useState(new Date());
+    const [updateState, setUpdateState] = useState<{ checking: boolean; latest: string | null; current: string | null; error: string | null }>({ checking: false, latest: null, current: null, error: null });
+
+    useEffect(() => {
+        (window as any).api?.getAppVersion?.().then((v: string) => setUpdateState(s => ({ ...s, current: v || null })));
+    }, []);
+
+    const checkUpdates = async () => {
+        setUpdateState(s => ({ ...s, checking: true, error: null }));
+        try {
+            const result = await (window as any).api?.checkForUpdates?.();
+            setUpdateState(s => ({ ...s, checking: false, latest: result?.latestVersion || null, error: result?.error || null }));
+        } catch (err) {
+            setUpdateState(s => ({ ...s, checking: false, error: String(err) }));
+        }
+    };
 
     useEffect(() => {
         const interval = setInterval(() => setCurrentTime(new Date()), 1000);
         return () => clearInterval(interval);
     }, []);
-    useEffect(() => { localStorage.setItem('incognide_clockMode', clockMode); }, [clockMode]);
 
-    const [backendStatus, setBackendStatus] = useState<BackendStatus>('unknown');
-    const [backendPid, setBackendPid] = useState<number | null>(null);
-    const [failCount, setFailCount] = useState(0);
-    const [restarting, setRestarting] = useState(false);
-    const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-    const checkHealth = useCallback(async () => {
-        if (restarting) return;
-        try {
-            const result = await (window as any).api?.backendHealth?.();
-            if (!result) { setBackendStatus('unknown'); return; }
-            setBackendPid(result.pid || null);
-            if (result.status === 'ok') {
-                setBackendStatus('ok');
-                setFailCount(0);
-            } else {
-                setBackendStatus(result.status as BackendStatus);
-                setFailCount(prev => prev + 1);
-            }
-        } catch {
-            setBackendStatus('unreachable');
-            setFailCount(prev => prev + 1);
-        }
-    }, [restarting]);
-
-    useEffect(() => {
-        checkHealth();
-        pollRef.current = setInterval(checkHealth, 600000);
-        return () => { if (pollRef.current) clearInterval(pollRef.current); };
-    }, [checkHealth]);
-
-    const handleRestart = async () => {
-        if (restarting) return;
-        setRestarting(true);
-        setBackendStatus('restarting');
-        try {
-            const result = await (window as any).api?.backendRestart?.();
-            if (result?.success) {
-                setBackendStatus('ok');
-                setFailCount(0);
-            } else {
-                setBackendStatus('unreachable');
-            }
-        } catch {
-            setBackendStatus('unreachable');
-        } finally {
-            setRestarting(false);
-        }
-    };
-
-    const statusColor = backendStatus === 'ok'
-        ? 'bg-green-500'
-        : backendStatus === 'restarting'
-            ? 'bg-yellow-500 animate-pulse'
-            : backendStatus === 'unhealthy'
-                ? 'bg-yellow-500'
-                : backendStatus === 'unreachable'
-                    ? 'bg-red-500'
-                    : 'bg-gray-500';
-
-    const statusLabel = backendStatus === 'ok'
-        ? `Backend OK${backendPid ? ` (PID ${backendPid})` : ''}`
-        : backendStatus === 'restarting'
-            ? 'Restarting backend...'
-            : backendStatus === 'unhealthy'
-                ? 'Backend unhealthy — click to restart'
-                : backendStatus === 'unreachable'
-                    ? `Backend unreachable${failCount > 1 ? ` (${failCount} failures)` : ''} — click to restart`
-                    : 'Checking backend...';
-
-    const handleCheckUpdates = async () => {
-        if (downloadProgress !== null && downloadProgress >= 100) {
-            setShowQuitPrompt(true);
-            return;
-        }
-        if (checkingUpdates || downloadProgress !== null) return;
-        if (updateAvailable) {
-
-            setDownloadProgress(0);
-            const cleanup = (window as any).api?.onUpdateDownloadProgress?.((data: any) => {
-                setDownloadProgress(data.progress);
-            });
-            try {
-                const result = await (window as any).api?.downloadAndInstallUpdate?.({
-                    releaseUrl: updateAvailable.releaseUrl,
-                });
-                if (result?.success) {
-                    setDownloadProgress(100);
-                    setShowQuitPrompt(true);
-                } else {
-
-                    (window as any).api?.browserOpenExternal?.(updateAvailable.releaseUrl);
-                    setDownloadProgress(null);
-                }
-            } catch {
-                (window as any).api?.browserOpenExternal?.(updateAvailable.releaseUrl);
-                setDownloadProgress(null);
-            } finally {
-                cleanup?.();
-            }
-            return;
-        }
-        if (!onCheckForUpdates) return;
-        setCheckingUpdates(true);
-        try { await onCheckForUpdates(); } finally { setCheckingUpdates(false); }
-    };
-
-    const btnClass = "p-2 rounded transition-colors hover:opacity-80 bg-transparent";
+    const btnClass = "w-9 h-9 flex items-center justify-center rounded transition-colors hover:opacity-80 bg-transparent";
 
     return (
         <div className="flex-shrink-0 relative" style={{ height }}>
@@ -253,25 +179,109 @@ const StatusBar: React.FC<StatusBarProps> = ({
                         {isDarkMode ? <Moon size={18} className="text-blue-400" /> : <Sun size={18} className="text-yellow-400" />}
                     </button>
                 )}
-                {onOpenAccount && (
-                    <button
-                        data-tutorial="account-button"
-                        onClick={onOpenAccount}
-                        className="flex items-center justify-center h-full hover:bg-teal-500/20 transition-all bg-transparent text-gray-400 hover:text-blue-400"
-                        title="Account"
-                    >
-                        <User size={18} />
-                    </button>
-                )}
+                <button
+                    data-tutorial="manager-button"
+                    onClick={() => (window as any).api?.openManagerWindow?.()}
+                    className="flex items-center justify-center h-full hover:bg-teal-500/20 transition-all bg-transparent text-gray-400 hover:text-blue-400"
+                    title="Open Manager"
+                >
+                    <LayoutGrid size={18} />
+                </button>
                 {onOpenNewWindow && (
-                    <button
-                        data-tutorial="new-window-button"
-                        onClick={onOpenNewWindow}
-                        className="flex items-center justify-center h-full hover:bg-teal-500/20 transition-all bg-transparent"
-                        title="New Window (Cmd/Ctrl+Shift+N)"
-                    >
-                        <img src={npcLogo} alt="Incognide" style={{ width: 18, height: 18 }} className="rounded-full" />
-                    </button>
+                    <div className="relative h-full">
+                        <button
+                            data-tutorial="new-window-button"
+                            onClick={onOpenNewWindow}
+                            onContextMenu={(e) => { e.preventDefault(); setSshMenuOpen(o => !o); }}
+                            className="w-full h-full flex items-center justify-center hover:bg-teal-500/20 transition-all bg-transparent"
+                            title="New Window (Cmd/Ctrl+Shift+N) · right-click for SSH"
+                        >
+                            <img src={npcLogo} alt="Incognide" style={{ width: 18, height: 18 }} className="rounded-full" />
+                        </button>
+                        {sshMenuOpen && onOpenSSHDialog && (
+                            <>
+                                <div className="fixed inset-0 z-40 bg-transparent" onMouseDown={() => setSshMenuOpen(false)} />
+                                <div className="absolute top-full left-0 mt-1 theme-bg-secondary border theme-border rounded shadow-xl z-50 py-1 min-w-[220px]">
+                                    {sshConnections?.length === 0 && (
+                                        <div className="px-3 py-1.5 text-[11px] text-gray-500">No saved connections</div>
+                                    )}
+                                    {sshConnections?.map((conn) => (
+                                        <div key={conn.id} className="flex items-center justify-between px-3 py-1.5 hover:bg-white/5">
+                                            <span className="text-xs theme-text-primary truncate max-w-[120px]">{conn.username}@{conn.host}</span>
+                                            {conn.isConnected ? (
+                                                <button
+                                                    onClick={() => { onDisconnectSsh?.(conn.id); setSshMenuOpen(false); }}
+                                                    className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                                                >
+                                                    Disconnect
+                                                </button>
+                                            ) : (
+                                                <>
+                                                    {passwordPromptId === conn.id ? (
+                                                        <div className="flex items-center gap-1">
+                                                            <input
+                                                                type="password"
+                                                                value={passwordInput}
+                                                                onChange={(e) => setPasswordInput(e.target.value)}
+                                                                placeholder="password"
+                                                                className="w-24 px-1.5 py-0.5 rounded bg-[#0f0f14] border border-[#313244] text-[10px] text-[#cdd6f4] outline-none"
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') {
+                                                                        onConnectSsh?.({ ...conn, password: passwordInput });
+                                                                        setPasswordPromptId(null);
+                                                                        setPasswordInput('');
+                                                                        setSshMenuOpen(false);
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <button
+                                                                onClick={() => {
+                                                                    onConnectSsh?.({ ...conn, password: passwordInput });
+                                                                    setPasswordPromptId(null);
+                                                                    setPasswordInput('');
+                                                                    setSshMenuOpen(false);
+                                                                }}
+                                                                className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                                                            >
+                                                                Go
+                                                            </button>
+                                                            <button
+                                                                onClick={() => { setPasswordPromptId(null); setPasswordInput(''); }}
+                                                                className="text-[10px] px-1.5 py-0.5 rounded text-gray-500 hover:text-white"
+                                                            >
+                                                                Cancel
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => {
+                                                                if (!conn.password && !conn.privateKeyPath) {
+                                                                    setPasswordPromptId(conn.id);
+                                                                } else {
+                                                                    onConnectSsh?.(conn);
+                                                                    setSshMenuOpen(false);
+                                                                }
+                                                            }}
+                                                            className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                                                        >
+                                                            Connect
+                                                        </button>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+                                    ))}
+                                    <div className="border-t theme-border my-1" />
+                                    <button
+                                        onClick={() => { onOpenSSHDialog(); setSshMenuOpen(false); }}
+                                        className="flex items-center gap-2 px-3 py-1.5 w-full text-left text-xs theme-text-muted hover:bg-white/10"
+                                    >
+                                        <Server size={12} /> New SSH connection
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
                 )}
             </div>
 
@@ -281,11 +291,11 @@ const StatusBar: React.FC<StatusBarProps> = ({
                 <TerminalCreateButton createNewTerminal={createNewTerminal} createNewConversation={createNewConversation} createNewBrowser={createNewBrowser} />
             )}
             {onCollapse && (
-                <button onClick={onCollapse} className={`${btnClass} text-gray-400 dark:text-gray-500`} title="Hide status bar"><ChevronDown size={16} /></button>
+                <button onClick={onCollapse} className={`${btnClass} text-gray-400 dark:text-gray-500`} title="Hide status bar"><ChevronDown size={18} /></button>
             )}
             <div data-tutorial="pane-indicators" className="flex items-center gap-1">
                 {paneItems.map((pane) => (
-                    <button key={pane.id} onClick={() => setActiveContentPaneId(pane.id)} className={`p-2 rounded transition-colors ${pane.isActive ? 'bg-blue-600 text-white' : 'bg-transparent theme-text-muted hover:opacity-80'}`} title={pane.title}>
+                    <button key={pane.id} onClick={() => setActiveContentPaneId(pane.id)} className={`w-9 h-9 flex items-center justify-center rounded transition-colors ${pane.isActive ? 'bg-blue-600 text-white' : 'bg-transparent theme-text-muted hover:opacity-80'}`} title={pane.title}>
                         {pane.type === 'chat' && <MessageSquare size={20} />}
                         {pane.type === 'agent' && <Bot size={20} />}
                         {pane.type === 'editor' && <FileIcon size={20} />}
@@ -308,133 +318,34 @@ const StatusBar: React.FC<StatusBarProps> = ({
 
             <div className="flex-1" />
 
-            {onOpenSSHDialog && (
-                <div className="relative">
-                    <button
-                        onClick={() => setSshMenuOpen(o => !o)}
-                        className={`flex items-center gap-1 px-1.5 py-1 rounded transition-colors hover:bg-white/10 ${activeConnection ? 'text-green-400' : 'text-gray-500 hover:text-green-400'}`}
-                        title={activeConnection ? `SSH: ${activeConnection.host}` : 'Connect via SSH'}
-                    >
-                        <Server size={14} />
-                    </button>
-                    {sshMenuOpen && (
-                        <>
-                            <div className="fixed inset-0 z-40 bg-transparent" onMouseDown={() => setSshMenuOpen(false)} />
-                            <div className="absolute bottom-full right-0 mb-1 theme-bg-secondary border theme-border rounded shadow-xl z-50 py-1 min-w-[220px]">
-                                {sshConnections?.length === 0 && (
-                                    <div className="px-3 py-1.5 text-[11px] text-gray-500">No saved connections</div>
-                                )}
-                                {sshConnections?.map((conn) => (
-                                    <div key={conn.id} className="flex items-center justify-between px-3 py-1.5 hover:bg-white/5">
-                                        <span className="text-xs theme-text-primary truncate max-w-[120px]">{conn.username}@{conn.host}</span>
-                                        {conn.isConnected ? (
-                                            <button
-                                                onClick={() => { onDisconnectSsh?.(conn.id); setSshMenuOpen(false); }}
-                                                className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30"
-                                            >
-                                                Disconnect
-                                            </button>
-                                        ) : (
-                                            <>
-                                                {passwordPromptId === conn.id ? (
-                                                    <div className="flex items-center gap-1">
-                                                        <input
-                                                            type="password"
-                                                            value={passwordInput}
-                                                            onChange={(e) => setPasswordInput(e.target.value)}
-                                                            placeholder="password"
-                                                            className="w-24 px-1.5 py-0.5 rounded bg-[#0f0f14] border border-[#313244] text-[10px] text-[#cdd6f4] outline-none"
-                                                            onKeyDown={(e) => {
-                                                                if (e.key === 'Enter') {
-                                                                    onConnectSsh?.({ ...conn, password: passwordInput });
-                                                                    setPasswordPromptId(null);
-                                                                    setPasswordInput('');
-                                                                    setSshMenuOpen(false);
-                                                                }
-                                                            }}
-                                                        />
-                                                        <button
-                                                            onClick={() => {
-                                                                onConnectSsh?.({ ...conn, password: passwordInput });
-                                                                setPasswordPromptId(null);
-                                                                setPasswordInput('');
-                                                                setSshMenuOpen(false);
-                                                            }}
-                                                            className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30"
-                                                        >
-                                                            Go
-                                                        </button>
-                                                        <button
-                                                            onClick={() => { setPasswordPromptId(null); setPasswordInput(''); }}
-                                                            className="text-[10px] px-1.5 py-0.5 rounded text-gray-500 hover:text-white"
-                                                        >
-                                                            Cancel
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => {
-                                                            if (!conn.password && !conn.privateKeyPath) {
-                                                                setPasswordPromptId(conn.id);
-                                                            } else {
-                                                                onConnectSsh?.(conn);
-                                                                setSshMenuOpen(false);
-                                                            }
-                                                        }}
-                                                        className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30"
-                                                    >
-                                                        Connect
-                                                    </button>
-                                                )}
-                                            </>
-                                        )}
-                                    </div>
-                                ))}
-                                <div className="border-t theme-border my-1" />
-                                <button
-                                    onClick={() => { onOpenSSHDialog(); setSshMenuOpen(false); }}
-                                    className="flex items-center gap-2 px-3 py-1.5 w-full text-left text-xs theme-text-muted hover:bg-white/10"
-                                >
-                                    <Server size={12} /> New SSH connection
-                                </button>
-                            </div>
-                        </>
-                    )}
-                </div>
-            )}
-
-            <div className="relative group/backend">
-                <div
-                    data-tutorial="backend-status"
-                    onClick={() => createBackendPane?.()}
-                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setShowBackendMenu(true); }}
-                    className={`flex items-center gap-1 px-1.5 py-1 rounded transition-colors cursor-pointer hover:bg-white/10 ${backendStatus === 'ok' ? '' : 'opacity-60'}`}
-                    title={statusLabel + ' — click for backend panel — right-click for quick options'}
+            <div className="grid grid-cols-3 h-full" style={{ width: buttonGroupWidth }}>
+                <button
+                    onClick={checkUpdates}
+                    disabled={updateState.checking}
+                    className="flex items-center justify-center h-full hover:bg-teal-500/20 transition-all bg-transparent text-gray-400 hover:text-blue-400 disabled:opacity-50"
+                    title={updateState.latest ? `Latest: ${updateState.latest}` : updateState.error ? updateState.error : 'Check for updates'}
                 >
-                    <img src={npcPythonLogo} alt="npcpy" className={`w-4 h-4 rounded-sm transition-all ${backendStatus === 'ok' ? '' : 'grayscale opacity-50'} ${restarting ? 'animate-pulse' : ''}`} />
-                    {restarting && <RefreshCw size={10} className="animate-spin text-yellow-400" />}
-                </div>
-                {showBackendMenu && (
-                    <>
-                        <div className="fixed inset-0 z-40 bg-transparent" onMouseDown={() => setShowBackendMenu(false)} />
-                        <div className="absolute bottom-full left-0 mb-1 bg-gray-900 border border-gray-700 rounded shadow-xl z-50 py-1 min-w-[140px]">
-                            <div className="px-3 py-1 text-[10px] text-gray-500 border-b border-gray-700">{statusLabel}</div>
-                            <button onClick={() => { handleRestart(); setShowBackendMenu(false); }} disabled={restarting} className="flex items-center gap-2 px-3 py-1.5 w-full text-left text-xs text-gray-300 hover:bg-white/10 disabled:opacity-50">
-                                <RefreshCw size={12} /> Restart Backend
-                            </button>
-                            <button onClick={() => { onOpenLogsViewer?.(); setShowBackendMenu(false); }} className="flex items-center gap-2 px-3 py-1.5 w-full text-left text-xs text-gray-300 hover:bg-white/10">
-                                <ScrollText size={12} /> View Logs
-                            </button>
-                        </div>
-                    </>
-                )}
-            </div>
-
-            {onToggleOpenMode && (
-                <button data-tutorial="pane-tab-toggle" onClick={onToggleOpenMode} className={`${btnClass} ${openMode === 'tab' ? 'text-blue-400' : 'text-gray-400 dark:text-gray-500'}`} title={openMode === 'pane' ? 'Pane mode' : 'Tab mode'}>
-                    {openMode === 'pane' ? <Columns size={16} /> : <Layers size={16} />}
+                    <RefreshCw size={16} className={updateState.checking ? 'animate-spin' : ''} />
                 </button>
-            )}
+                {onToggleOpenMode && (
+                    <button data-tutorial="pane-tab-toggle" onClick={onToggleOpenMode} className={`flex items-center justify-center h-full hover:bg-teal-500/20 transition-all bg-transparent ${openMode === 'tab' ? 'text-blue-400' : 'text-gray-400 dark:text-gray-500'}`} title={openMode === 'pane' ? 'Pane mode' : 'Tab mode'}>
+                        {openMode === 'pane' ? <Columns size={18} /> : <Layers size={18} />}
+                    </button>
+                )}
+                <button
+                    onClick={onTogglePomodoro}
+                    onContextMenu={(e) => { e.preventDefault(); onOpenPomodoroConfig?.(); }}
+                    className={`flex items-center justify-center h-full hover:bg-teal-500/20 transition-all bg-transparent ${pomodoroActive ? (pomodoroPhase === 'work' ? 'text-red-400' : 'text-green-400') : 'text-gray-400 hover:text-blue-400'}`}
+                    title={pomodoroActive ? `${pomodoroPhase === 'work' ? 'Working' : 'Break'} — ${formatPomodoroTime(pomodoroSecondsLeft)} left (click to stop, right-click to configure)` : 'Pomodoro Timer (right-click to configure)'}
+                >
+                    {pomodoroActive ? (
+                        <span className="flex flex-col items-center leading-none">
+                            {tomatoIcon(true, pomodoroPhase)}
+                            <span className="font-mono tabular-nums text-[9px]">{formatPomodoroTime(pomodoroSecondsLeft)}</span>
+                        </span>
+                    ) : tomatoIcon(false, pomodoroPhase)}
+                </button>
+            </div>
 
             {Object.keys(activeDownloads).length > 0 && (
                 <div className="relative">
@@ -445,7 +356,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
                         onClick={() => setDownloadPopoverOpen(v => !v)}
                         className={`${btnClass} ${downloadPopoverOpen ? 'text-blue-300 bg-white/10' : 'text-blue-400'}`}
                     >
-                        <Download size={16} />
+                        <Download size={18} />
                     </button>
                     {downloadPopoverOpen && (
                         <div className="absolute bottom-full right-0 mb-1 w-64 bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-50 p-2">
@@ -509,26 +420,59 @@ const StatusBar: React.FC<StatusBarProps> = ({
                 </div>
             )}
 
-            <div className="relative group/update">
-                <button data-tutorial="update-button" onClick={handleCheckUpdates} className={`${btnClass} ${updateAvailable ? 'text-amber-500' : 'text-gray-400 dark:text-gray-500'}`}>
-                    {downloadProgress !== null ? (downloadProgress >= 100 ? <Check size={16} className="text-green-400" /> : <span className="text-[10px] font-mono text-amber-400">{downloadProgress}%</span>) : updateAvailable ? <AlertCircle size={16} /> : checkingUpdates ? <RefreshCw size={16} className="animate-spin" /> : <Check size={16} />}
-                </button>
-                {showQuitPrompt && (
+            <div className="relative">
+                {pomodoroConfigOpen && (
                     <>
-                        <div className="fixed inset-0 z-40 bg-transparent" onMouseDown={() => setShowQuitPrompt(false)} />
-                        <div className="absolute bottom-full right-0 mb-1 bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-50 p-3 min-w-[220px]">
-                            <p className="text-[11px] text-gray-300 mb-2">Update downloaded. Close to install?</p>
-                            <div className="flex items-center gap-2">
-                                <button onClick={() => (window as any).api?.closeWindow?.()} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-green-600 hover:bg-green-500 text-white rounded transition-colors"><Power size={12} /> Quit & Install</button>
-                                <button onClick={() => setShowQuitPrompt(false)} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-200 hover:bg-white/10 rounded transition-colors">Later</button>
+                        <div className="fixed inset-0 z-40 bg-transparent" onMouseDown={() => onOpenPomodoroConfig?.()} />
+                        <div className="absolute bottom-full right-0 mb-1 theme-bg-secondary border theme-border rounded shadow-xl z-50 p-3 min-w-[260px]">
+                            <div className="text-xs font-medium theme-text-primary mb-2">Pomodoro Settings</div>
+                            <label className="flex items-center justify-between text-xs theme-text-muted mb-1.5">
+                                <span>Work (min)</span>
+                                <input type="number" min="1" max="120" value={pomodoroWorkMins} onChange={e => onPomodoroWorkChange?.(Math.max(1, parseInt(e.target.value) || 1))} className="w-14 px-1 py-0.5 rounded theme-bg-primary theme-border border text-xs text-right theme-text-primary" />
+                            </label>
+                            <label className="flex items-center justify-between text-xs theme-text-muted mb-2">
+                                <span>Break (min)</span>
+                                <input type="number" min="1" max="60" value={pomodoroBreakMins} onChange={e => onPomodoroBreakChange?.(Math.max(1, parseInt(e.target.value) || 1))} className="w-14 px-1 py-0.5 rounded theme-bg-primary theme-border border text-xs text-right theme-text-primary" />
+                            </label>
+                            <div className="border-t theme-border pt-2 mt-1">
+                                <div className="text-xs font-medium theme-text-primary mb-1.5">Schedule</div>
+                                {pomodoroSchedule.map((entry, idx) => (
+                                    <div key={idx} className="flex items-center gap-1 mb-1 text-[10px] theme-text-muted">
+                                        <span className="flex-1">
+                                            {['Su','Mo','Tu','We','Th','Fr','Sa'].filter((_, i) => entry.days.includes(i)).join(',')}
+                                            {' '}at {String(entry.startHour).padStart(2,'0')}:{String(entry.startMinute).padStart(2,'0')}
+                                        </span>
+                                        <button onClick={() => onPomodoroScheduleChange?.(pomodoroSchedule.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-300 p-0.5"><X size={10} /></button>
+                                    </div>
+                                ))}
+                                <div className="flex items-center gap-1 mt-1">
+                                    <select
+                                        id="pomo-sched-days"
+                                        multiple
+                                        className="w-20 text-[10px] theme-bg-primary theme-border border rounded p-0.5 theme-text-primary"
+                                        style={{ height: '52px' }}
+                                    >
+                                        {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d, i) => (
+                                            <option key={i} value={i}>{d}</option>
+                                        ))}
+                                    </select>
+                                    <input id="pomo-sched-time" type="time" defaultValue="09:00" className="text-[10px] theme-bg-primary theme-border border rounded px-1 py-0.5 theme-text-primary" />
+                                    <button
+                                        onClick={() => {
+                                            const sel = document.getElementById('pomo-sched-days') as HTMLSelectElement;
+                                            const timeInput = document.getElementById('pomo-sched-time') as HTMLInputElement;
+                                            const days = Array.from(sel.selectedOptions).map(o => parseInt(o.value));
+                                            const [h, m] = (timeInput.value || '09:00').split(':').map(Number);
+                                            if (days.length > 0) {
+                                                onPomodoroScheduleChange?.([...pomodoroSchedule, { days, startHour: h, startMinute: m }]);
+                                            }
+                                        }}
+                                        className="text-[10px] px-1.5 py-0.5 rounded bg-blue-600/30 text-blue-400 hover:bg-blue-600/50"
+                                    >Add</button>
+                                </div>
                             </div>
                         </div>
                     </>
-                )}
-                {!showQuitPrompt && (
-                    <div className="absolute bottom-full right-0 mb-1 px-2 py-1 bg-gray-900 border border-gray-700 rounded text-[10px] text-gray-300 whitespace-nowrap opacity-0 group-hover/update:opacity-100 pointer-events-none transition-opacity duration-150 z-50">
-                        {downloadProgress !== null && downloadProgress >= 100 ? 'Update ready — click to quit & install' : updateAvailable ? `v${appVersion || '?'} → v${updateAvailable.latestVersion} available` : `v${appVersion || '?'} — up to date`}
-                    </div>
                 )}
             </div>
 

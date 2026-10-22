@@ -1410,6 +1410,11 @@ const ChatInterface = ({ onRerunSetup }: { onRerunSetup?: () => void }) => {
                 }
             }));
         }
+        if (api.api?.onMenuReopenWindows) {
+            cleanups.push(api.api.onMenuReopenWindows(() => {
+                api.api?.reopenClosedWindows?.();
+            }));
+        }
         if (api.api?.onMenuGlobalSearch) {
             cleanups.push(api.api.onMenuGlobalSearch(() => {
 
@@ -7617,80 +7622,6 @@ const topBar = topBarCollapsed ? (
 
             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-3 z-10">
 
-                <div className="relative">
-                    <button
-                        onClick={startPomodoro}
-                        onContextMenu={(e) => { e.preventDefault(); setPomodoroConfigOpen(prev => !prev); }}
-                        className={`p-1.5 rounded theme-text-muted transition-colors ${pomodoroActive ? (pomodoroPhase === 'work' ? 'bg-red-600/30 text-red-400' : 'bg-green-600/30 text-green-400') : 'theme-hover'}`}
-                        title={pomodoroActive ? `${pomodoroPhase === 'work' ? 'Working' : 'Break'} — ${formatPomodoroTime(pomodoroSecondsLeft)} left (click to stop, right-click to configure)` : 'Pomodoro Timer (right-click to configure)'}
-                    >
-                        <span className="flex items-center gap-1">
-                            <svg width="16" height="16" viewBox="0 0 24 24">
-                                <ellipse cx="12" cy="14" rx="9" ry="8" fill={pomodoroActive ? (pomodoroPhase === 'work' ? '#ef4444' : '#22c55e') : '#9ca3af'} />
-                                <ellipse cx="9" cy="12" rx="3" ry="2.5" fill="rgba(255,255,255,0.2)" />
-                                <path d="M12 6 Q12 3 10 2" stroke="#22c55e" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-                                <path d="M12 5 Q15 3 17 4 Q15 5.5 12 5" fill="#22c55e" />
-                            </svg>
-                            {pomodoroActive && <span className="text-[10px] font-mono tabular-nums">{formatPomodoroTime(pomodoroSecondsLeft)}</span>}
-                        </span>
-                    </button>
-                    {pomodoroConfigOpen && (
-                        <>
-                            <div className="fixed inset-0 z-40 bg-transparent" onMouseDown={() => setPomodoroConfigOpen(false)} />
-                            <div className="absolute right-0 top-full mt-1 theme-bg-secondary border theme-border rounded shadow-xl z-50 p-3 min-w-[260px]">
-                                <div className="text-xs font-medium theme-text-primary mb-2">Pomodoro Settings</div>
-                                <label className="flex items-center justify-between text-xs theme-text-muted mb-1.5">
-                                    <span>Work (min)</span>
-                                    <input type="number" min="1" max="120" value={pomodoroWorkMins} onChange={e => setPomodoroWorkMins(Math.max(1, parseInt(e.target.value) || 1))} className="w-14 px-1 py-0.5 rounded theme-bg-primary theme-border border text-xs text-right theme-text-primary" />
-                                </label>
-                                <label className="flex items-center justify-between text-xs theme-text-muted mb-2">
-                                    <span>Break (min)</span>
-                                    <input type="number" min="1" max="60" value={pomodoroBreakMins} onChange={e => setPomodoroBreakMins(Math.max(1, parseInt(e.target.value) || 1))} className="w-14 px-1 py-0.5 rounded theme-bg-primary theme-border border text-xs text-right theme-text-primary" />
-                                </label>
-
-                                <div className="border-t theme-border pt-2 mt-1">
-                                    <div className="text-xs font-medium theme-text-primary mb-1.5">Schedule</div>
-                                    {pomodoroSchedule.map((entry, idx) => (
-                                        <div key={idx} className="flex items-center gap-1 mb-1 text-[10px] theme-text-muted">
-                                            <span className="flex-1">
-                                                {['Su','Mo','Tu','We','Th','Fr','Sa'].filter((_, i) => entry.days.includes(i)).join(',')}
-                                                {' '}at {String(entry.startHour).padStart(2,'0')}:{String(entry.startMinute).padStart(2,'0')}
-                                            </span>
-                                            <button onClick={() => setPomodoroSchedule(prev => prev.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-300 p-0.5"><X size={10} /></button>
-                                        </div>
-                                    ))}
-                                    <div className="flex items-center gap-1 mt-1">
-                                        <select
-                                            id="pomo-sched-days"
-                                            multiple
-                                            className="w-20 text-[10px] theme-bg-primary theme-border border rounded p-0.5 theme-text-primary"
-                                            style={{ height: '52px' }}
-                                        >
-                                            {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d, i) => (
-                                                <option key={i} value={i}>{d}</option>
-                                            ))}
-                                        </select>
-                                        <input id="pomo-sched-time" type="time" defaultValue="09:00" className="text-[10px] theme-bg-primary theme-border border rounded px-1 py-0.5 theme-text-primary" />
-                                        <button
-                                            onClick={() => {
-                                                const sel = document.getElementById('pomo-sched-days') as HTMLSelectElement;
-                                                const timeInput = document.getElementById('pomo-sched-time') as HTMLInputElement;
-                                                const days = Array.from(sel.selectedOptions).map(o => parseInt(o.value));
-                                                const [h, m] = (timeInput.value || '09:00').split(':').map(Number);
-                                                if (days.length > 0) {
-                                                    setPomodoroSchedule(prev => [...prev, { days, startHour: h, startMinute: m }]);
-                                                }
-                                            }}
-                                            className="text-[10px] px-1.5 py-0.5 rounded bg-blue-600/30 text-blue-400 hover:bg-blue-600/50"
-                                        >Add</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </>
-                    )}
-                </div>
-
-
                 <span
                     className="theme-text-muted tabular-nums cursor-pointer hover:text-gray-300 flex-shrink-0"
                     onClick={() => setClockMode(prev => prev === 'analog' ? 'digital' : prev === 'digital' ? 'digital-date' : 'analog')}
@@ -7736,14 +7667,9 @@ const statusBar = bottomBarCollapsed ? (
         sidebarCollapsed={sidebarCollapsed}
         onExpandSidebar={() => setSidebarCollapsed(false)}
         sidebarWidth={sidebarWidth}
-        appVersion={appVersion}
-        updateAvailable={updateAvailable}
-        onCheckForUpdates={checkForUpdates}
         onCollapse={() => { setBottomBarCollapsed(true); localStorage.setItem('incognide_bottomBarCollapsed', 'true'); }}
         openMode={openMode}
         onToggleOpenMode={() => { setOpenMode(m => { const next = m === 'pane' ? 'tab' : 'pane'; localStorage.setItem('incognide_openMode', next); if (currentPath && rootLayoutNode) { const data = serializeWorkspace(rootLayoutNode, currentPath, contentDataRef.current, activeContentPaneId, next); if (data) saveWorkspaceToStorage(currentPath, data); } return next; }); }}
-        onOpenLogsViewer={() => setLogsViewerOpen(true)}
-        createBackendPane={createBackendPane}
         activeConnection={sshActiveConnection}
         sshConnections={sshConnections}
         onConnectSsh={(config) => handleSshConnect(config)}
@@ -7751,7 +7677,6 @@ const statusBar = bottomBarCollapsed ? (
         onOpenSSHDialog={() => setSshDialogOpen(true)}
         isDarkMode={isDarkMode}
         toggleTheme={() => toggleTheme(setIsDarkMode)}
-        onOpenAccount={() => createAndAddPaneNodeToLayout?.('account', 'account')}
         onOpenNewWindow={() => { if ((window as any).api?.openNewWindow) (window as any).api.openNewWindow(''); else window.open(window.location.href, '_blank'); }}
         createNewTerminal={createNewTerminal}
         createNewConversation={createNewConversation}
@@ -7769,6 +7694,18 @@ const statusBar = bottomBarCollapsed ? (
         messageSearchResults={messageSearchResults}
         setSearchResultsModalOpen={setSearchResultsModalOpen}
         SEARCH_SCOPES={SEARCH_SCOPES}
+        pomodoroActive={pomodoroActive}
+        pomodoroPhase={pomodoroPhase}
+        pomodoroSecondsLeft={pomodoroSecondsLeft}
+        onTogglePomodoro={startPomodoro}
+        onOpenPomodoroConfig={() => setPomodoroConfigOpen(v => !v)}
+        pomodoroConfigOpen={pomodoroConfigOpen}
+        pomodoroWorkMins={pomodoroWorkMins}
+        pomodoroBreakMins={pomodoroBreakMins}
+        onPomodoroWorkChange={setPomodoroWorkMins}
+        onPomodoroBreakChange={setPomodoroBreakMins}
+        pomodoroSchedule={pomodoroSchedule}
+        onPomodoroScheduleChange={setPomodoroSchedule}
     />
 );
 

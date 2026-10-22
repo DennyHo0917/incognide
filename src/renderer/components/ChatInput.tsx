@@ -10,6 +10,7 @@ import ContextFilesPanel from './ContextFilesPanel';
 import ContextUsageMeter from './ContextUsageMeter';
 import { computeContextUsage, findContextWindow } from '../utils/contextUsage';
 import ModelSelector from './ModelSelector';
+import ToolDropdown from './ToolDropdown';
 
 const getMcpServerDisplayName = (serverPath: string): string => {
     const teamMatch = serverPath.match(/--team\s+(.+)$/);
@@ -1500,7 +1501,7 @@ const ChatInput: React.FC<ChatInputProps> = (props) => {
 
                 <div className={`px-1.5 py-1 pb-1.5 relative z-50 flex-shrink-0 ${isStreaming ? 'opacity-50 pointer-events-none' : ''}`}>
                 <div className="flex items-center gap-1">
-                    <div className="relative flex-1 min-w-0 w-1/2" ref={npcsDropdownRef}>
+                    <div className="relative flex-1 min-w-0 w-1/3" ref={npcsDropdownRef}>
                         <button
                             className={`w-full h-7 flex items-center justify-center gap-1 rounded-lg text-xs font-medium transition-all duration-200 border px-2 ${
                                 selectedNPCs.length > 1
@@ -1576,7 +1577,24 @@ const ChatInput: React.FC<ChatInputProps> = (props) => {
                         )}
                     </div>
 
-                    <div className="relative flex-1 min-w-0 w-1/2">
+                    <div className="relative flex-1 min-w-0 w-1/3">
+                        <ToolDropdown
+                            tools={jinxesToDisplay}
+                            selectedTool={selectedJinx}
+                            onSelectTool={(tool) => {
+                                setSelectedJinx(tool);
+                                setExecutionMode('tool_agent');
+                            }}
+                            onClearTool={() => {
+                                setSelectedJinx(null);
+                                setExecutionMode('chat');
+                            }}
+                            loading={false}
+                            className="w-full"
+                        />
+                    </div>
+
+                    <div className="relative flex-1 min-w-0 w-1/3">
                         <ModelSelector
                             availableModels={modelsToDisplay}
                             selectedModel={currentModel}

@@ -96,7 +96,7 @@ export const HelpViewer: React.FC<HelpViewerProps> = ({ appVersion }) => {
                         <p className="text-sm theme-text-muted leading-relaxed">
                             Incognide is an AI-native desktop environment that combines an integrated development environment,
                             web browser, document editing, terminal, and knowledge management into a flexible tiled workspace.
-                            Create custom AI personas (NPCs), automate workflows with Jinxes, and organize your work however you like.
+                            Create custom AI personas (NPCs), automate workflows with Tools, and organize your work however you like.
                         </p>
                     </div>
                 )}
@@ -153,8 +153,8 @@ export const HelpViewer: React.FC<HelpViewerProps> = ({ appVersion }) => {
                     </CollapsibleSection>
                 )}
 
-                {matchesSearch('npc persona jinx workflow automation agent') && (
-                    <CollapsibleSection title="NPCs & Jinxes" icon={<Users size={18} />}>
+                {matchesSearch('npc persona tool workflow automation agent') && (
+                    <CollapsibleSection title="NPCs & Tools" icon={<Users size={18} />}>
                         <div className="space-y-3">
                             <div>
                                 <h4 className="font-medium theme-text-primary text-sm mb-1">NPCs (Personas)</h4>
@@ -166,9 +166,9 @@ export const HelpViewer: React.FC<HelpViewerProps> = ({ appVersion }) => {
                                 </p>
                             </div>
                             <div>
-                                <h4 className="font-medium theme-text-primary text-sm mb-1">Jinxes (Workflows)</h4>
+                                <h4 className="font-medium theme-text-primary text-sm mb-1">Tools (Workflows)</h4>
                                 <p className="text-xs theme-text-muted">
-                                    Jinxes are reusable YAML workflows with Jinja2 templating. Type <code className="px-1 py-0.5 bg-gray-700 rounded text-[10px]">/jinx_name</code> in chat
+                                    Tools are reusable YAML workflows with Jinja2 templating. Type <code className="px-1 py-0.5 bg-gray-700 rounded text-[10px]">/tool_name</code> in chat
                                     to run them. Define inputs, chain multiple AI steps, and automate repetitive tasks.
                                 </p>
                             </div>
@@ -184,7 +184,7 @@ export const HelpViewer: React.FC<HelpViewerProps> = ({ appVersion }) => {
                                 <p className="text-xs theme-text-muted">
                                     <span className="text-cyan-400">Chat</span> - Standard conversation.{' '}
                                     <span className="text-amber-400">Agent</span> - AI with MCP tools (file ops, code exec, browsing).{' '}
-                                    <span className="text-purple-400">Jinx</span> - Run workflow templates.
+                                    <span className="text-purple-400">Tool</span> - Run workflow templates.
                                 </p>
                             </div>
                         </div>
@@ -208,7 +208,7 @@ export const HelpViewer: React.FC<HelpViewerProps> = ({ appVersion }) => {
                             <PaneTypeItem icon={<FolderOpen size={12} />} name="Library" desc="File browser" color="text-sky-400" />
                             <PaneTypeItem icon={<HardDrive size={12} />} name="Disk" desc="Storage usage" color="text-slate-400" />
                             <PaneTypeItem icon={<Users size={12} />} name="Team" desc="NPC management" color="text-emerald-400" />
-                            <PaneTypeItem icon={<Zap size={12} />} name="Jinx" desc="Workflow editor" color="text-violet-400" />
+                            <PaneTypeItem icon={<Zap size={12} />} name="Tool" desc="Workflow editor" color="text-violet-400" />
                             <PaneTypeItem icon={<Wrench size={12} />} name="Settings" desc="Configuration" color="text-gray-400" />
                             <PaneTypeItem icon={<Palette size={12} />} name="Env" desc="Python envs" color="text-rose-400" />
                             <PaneTypeItem icon={<HelpCircle size={12} />} name="Help" desc="This pane" color="text-blue-300" />

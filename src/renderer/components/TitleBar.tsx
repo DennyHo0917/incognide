@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Minus, Square, X, Maximize2, Wrench } from 'lucide-react';
+import { Minus, Square, X, Maximize2, Wrench, LayoutGrid } from 'lucide-react';
 
 interface MenuItem {
   label: string;
@@ -62,6 +62,7 @@ const menus: Menu[] = [
     label: 'Window',
     items: [
       { label: 'New Window', action: 'menu-new-window' },
+      { label: 'Manager', action: 'open-manager' },
       { separator: true, label: '' },
       { label: 'Minimize', action: 'minimize' },
       { label: 'Zoom', action: 'zoom' },
@@ -100,6 +101,11 @@ const MenuDropdowns: React.FC = () => {
   }, []);
 
   const handleClick = (item: MenuItem) => {
+    if (item.action === 'open-manager') {
+      (window as any).api?.openManagerWindow?.();
+      setOpenIndex(null);
+      return;
+    }
     if (item.action) {
       (window as any).api?.menuAction?.(item.action, item.url);
     }
@@ -177,6 +183,21 @@ const TitleBar: React.FC = () => {
     window.api?.windowControls?.toggleDevTools?.();
   };
 
+  const handleOpenManager = () => {
+    (window as any).api?.openManagerWindow?.();
+  };
+
+  const managerButton = (
+    <button
+      onClick={handleOpenManager}
+      className="w-9 h-9 flex items-center justify-center theme-text-muted hover:theme-bg-tertiary hover:theme-text-primary transition-colors"
+      title="Open Manager"
+      style={{ WebkitAppRegion: 'no-drag' }}
+    >
+      <LayoutGrid size={14} />
+    </button>
+  );
+
   const devToolsButton = (
     <button
       onClick={handleToggleDevTools}
@@ -198,7 +219,8 @@ const TitleBar: React.FC = () => {
           <MenuDropdowns />
         </div>
         <div className="flex-1" />
-        <div className="px-1">
+        <div className="px-1 flex items-center">
+          {managerButton}
           {devToolsButton}
         </div>
       </div>
@@ -215,6 +237,7 @@ const TitleBar: React.FC = () => {
       </div>
 
       <div className="flex items-center" style={{ WebkitAppRegion: 'no-drag' }}>
+        {managerButton}
         {devToolsButton}
         <button
           onClick={handleMinimize}

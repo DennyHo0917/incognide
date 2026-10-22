@@ -12,6 +12,7 @@ import ContextFilesPanel from './ContextFilesPanel';
 import ContextUsageMeter from './ContextUsageMeter';
 import { computeContextUsage, findContextWindow } from '../utils/contextUsage';
 import ModelSelector from './ModelSelector';
+import ToolDropdown from './ToolDropdown';
 
 const getMcpServerDisplayName = (serverPath: string): string => {
     const teamMatch = serverPath.match(/--team\s+(.+)$/);
@@ -1615,7 +1616,7 @@ const AgentInput: React.FC<AgentInputProps> = (props) => {
                                             }
                                         }}
                                         onPaste={handlePaste}
-                                        placeholder="Type a message... (use /jinx to run a jinx)"
+                                        placeholder="Type a message... (use /tool to run a tool)"
                                         className="w-full h-full theme-input text-sm rounded-lg pl-3 pr-16 py-2 focus:outline-none border-0 resize-none"
                                     />
                                     {showJinxSuggestion && detectedJinxes.length > 0 && (
@@ -1624,7 +1625,7 @@ const AgentInput: React.FC<AgentInputProps> = (props) => {
                                                 <button
                                                     key={jinx.name}
                                                     onClick={() => {
-                                                        setExecutionMode(jinx.name);
+                                                        setExecutionMode('tool_agent');
                                                         setSelectedJinx(jinx);
                                                         setLocalInput('');
                                                         setShowJinxSuggestion(false);
@@ -1779,10 +1780,27 @@ const AgentInput: React.FC<AgentInputProps> = (props) => {
                         onToggleBroadcast={() => setBroadcastMode(!broadcastMode)}
                         onOpen={() => setShowJinxDropdown(false)}
                         placeholder="Agent"
-                        className="w-1/2"
+                        className="w-1/3"
                     />
 
-                    <div className="relative flex-1 min-w-0 w-1/2">
+                    <div className="relative flex-1 min-w-0 w-1/3">
+                        <ToolDropdown
+                            tools={jinxesToDisplay}
+                            selectedTool={selectedJinx}
+                            onSelectTool={(tool) => {
+                                setSelectedJinx(tool);
+                                setExecutionMode('tool_agent');
+                            }}
+                            onClearTool={() => {
+                                setSelectedJinx(null);
+                                setExecutionMode('tool_agent');
+                            }}
+                            loading={false}
+                            className="w-full"
+                        />
+                    </div>
+
+                    <div className="relative flex-1 min-w-0 w-1/3">
                         <ModelSelector
                             availableModels={modelsToDisplay}
                             selectedModel={currentModel}

@@ -124,6 +124,8 @@ readPdfText: (filePath) =>
     getRecentPaths: () => ipcRenderer.invoke('get-recent-paths'),
     getWindowCount: () => ipcRenderer.invoke('get-window-count'),
     getAllWindowsInfo: () => ipcRenderer.invoke('get-all-windows-info'),
+    getSavedWorkspaces: () => ipcRenderer.invoke('get-saved-workspaces'),
+    forgetWorkspace: (folderPath) => ipcRenderer.invoke('forget-workspace', folderPath),
     closeWindowById: (windowId) => ipcRenderer.invoke('close-window-by-id', windowId),
     focusWindowById: (windowId) => ipcRenderer.invoke('focus-window-by-id', windowId),
     minimizeWindowById: (windowId) => ipcRenderer.invoke('minimize-window-by-id', windowId),
@@ -205,6 +207,11 @@ readPdfText: (filePath) =>
         ipcRenderer.on('menu-reopen-tab', callback);
         return () => ipcRenderer.removeListener('menu-reopen-tab', callback);
     },
+    onMenuReopenWindows: (callback) => {
+        ipcRenderer.on('menu-reopen-windows', callback);
+        return () => ipcRenderer.removeListener('menu-reopen-windows', callback);
+    },
+    reopenClosedWindows: () => ipcRenderer.invoke('reopen-closed-windows'),
 
     readFile: (filePath) => ipcRenderer.invoke('read-file-buffer', filePath),
 
@@ -792,6 +799,11 @@ onTerminalClosed: (callback) => {
     },
     backendTryLocalPython: () => ipcRenderer.invoke('backend:tryLocalPython'),
     backendInstallAndStart: (args) => ipcRenderer.invoke('backend:installAndStart', args),
+    startBackend: () => ipcRenderer.invoke('backend:start'),
+    stopBackend: () => ipcRenderer.invoke('backend:stop'),
+    restartBackend: () => ipcRenderer.invoke('backend:restart'),
+    installAndStartBackend: (args) => ipcRenderer.invoke('backend:installAndStart', args),
+    findLocalPython: () => ipcRenderer.invoke('backend:tryLocalPython'),
     onBackendInstallProgress: (cb) => {
         const handler = (_, data) => cb(data);
         ipcRenderer.on('backend:installProgress', handler);
@@ -913,7 +925,7 @@ fileExists: (path) => ipcRenderer.invoke('file-exists', path),
 
     showPromptDialog: (options) => ipcRenderer.invoke('showPromptDialog', options),
     checkServerConnection: () => ipcRenderer.invoke('checkServerConnection'),
-    openExternal: (url) => ipcRenderer.invoke('openExternal', url),
+    openExternal: (url) => ipcRenderer.send('menu-action', { action: 'openExternal', url }),
 
     jupyterListKernels: (args) => ipcRenderer.invoke('jupyter:listKernels', args),
     jupyterStartKernel: (args) => ipcRenderer.invoke('jupyter:startKernel', args),
@@ -1035,6 +1047,9 @@ fileExists: (path) => ipcRenderer.invoke('file-exists', path),
         openDevTools: () => ipcRenderer.send('window-open-devtools'),
         toggleDevTools: () => ipcRenderer.send('window-toggle-devtools'),
     },
+    openAccountInMain: () => ipcRenderer.invoke('open-account-in-main'),
+    openManagerWindow: () => ipcRenderer.invoke('open-manager-window'),
+    closeManagerWindow: () => ipcRenderer.invoke('close-manager-window'),
     windowState: {
         isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
     },
