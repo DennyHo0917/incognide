@@ -427,7 +427,7 @@ export const ChatMessage = memo(({
                                 </span>
                             )}
                             {message.jinxName && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-orange-600/20 text-orange-300 border border-orange-600/30" title={`Jinx: ${message.jinxName}`}>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-orange-600/20 text-orange-300 border border-orange-600/30" title={`Tool: ${message.jinxName}`}>
                                     <Zap size={10} />
                                     {message.jinxName}
                                 </span>

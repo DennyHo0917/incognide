@@ -416,7 +416,7 @@ const CtxEditor = ({ isOpen, onClose, teamPath, embedded = false, onOpenDatabase
 
         return (
             <div className="space-y-2">
-                <label className="block text-sm theme-text-secondary mb-1">Team Jinxes</label>
+                <label className="block text-sm theme-text-secondary mb-1">Team Tools</label>
                 <div className="relative">
                     <div className="flex items-center gap-2">
                         <div className="relative flex-1">

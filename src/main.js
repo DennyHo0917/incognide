@@ -386,6 +386,7 @@ ipcMain.on('menu-action', (event, { action, url }) => {
         case 'zoom': if (win.isMaximized()) win.unmaximize(); else win.maximize(); break;
         case 'close': win.close(); break;
         case 'openExternal': shell.openExternal(url || 'https://incognide.com'); break;
+        case 'open-manager': createManagerWindow(); break;
         case 'about':
             dialog.showMessageBox(win, {
                 type: 'info',
@@ -403,6 +404,7 @@ let pdfView = null;
 let uiHidden = false;
 let frontendServer = null;
 let clerkWebRequestRegistered = false;
+let managerWindow = null;
 
 function getMenuTargetWindow(focusedWindow) {
   if (focusedWindow && !focusedWindow.isDestroyed()) return focusedWindow;
@@ -443,6 +445,7 @@ function applyAppMenu() {
         { label: 'New Chat', click: (_, focusedWindow) => sendToMenuWindow('menu-new-chat', focusedWindow) },
         { label: 'New Terminal', accelerator: isMac ? 'Ctrl+Shift+T' : 'Super+Shift+T', click: (_, focusedWindow) => sendToMenuWindow('menu-new-terminal', focusedWindow) },
         { label: 'Reopen Closed Tab', accelerator: 'CmdOrCtrl+Shift+T', click: (_, focusedWindow) => sendToMenuWindow('menu-reopen-tab', focusedWindow) },
+        { label: 'Reopen Closed Windows', click: (_, focusedWindow) => sendToMenuWindow('menu-reopen-windows', focusedWindow) },
         { label: 'New Browser Tab', accelerator: 'CmdOrCtrl+T', click: (_, focusedWindow) => sendToMenuWindow('browser-new-tab', focusedWindow) },
         { type: 'separator' },
         { label: 'Open File...', accelerator: 'CmdOrCtrl+O', click: (_, focusedWindow) => sendToMenuWindow('menu-open-file', focusedWindow) },
@@ -491,6 +494,7 @@ function applyAppMenu() {
       label: 'Window',
       submenu: [
         { label: 'New Window', accelerator: 'CmdOrCtrl+Shift+N', click: (_, focusedWindow) => sendToMenuWindow('menu-new-window', focusedWindow) },
+        { label: 'Manager', accelerator: 'CmdOrCtrl+Shift+M', click: () => createManagerWindow() },
         { type: 'separator' },
         { role: 'minimize' }, { role: 'zoom' },
         ...(isMac
@@ -2251,28 +2255,6 @@ window.__addLog = function(msg) {
   }
 
   createWindow(cliArgs);
-
-  // Restore any workspaces that were open in the previous session.
-  // Wait briefly so the first window has time to register its workspace path
-  // and avoid duplicate windows for the same folder.
-  setTimeout(() => {
-    restoreOpenWorkspaces(cliArgs.folder).catch(err => {
-      console.error('[OPEN_WORKSPACES] Restore failed:', err);
-    });
-  }, 2000);
-
-  // If this is a fresh install or the persisted file is empty, ask the first
-  // renderer to report workspaces it remembers from localStorage so we can
-  // reopen them.
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.once('dom-ready', () => {
-      try {
-        mainWindow.webContents.send('request-saved-workspaces');
-      } catch (e) {
-        console.error('[OPEN_WORKSPACES] Failed to request saved workspaces:', e);
-      }
-    });
-  }
 });
 
 async function callBackendApi(url, options = {}) {
@@ -2881,8 +2863,9 @@ function createWindow(cliArgs = {}) {
       if (windowState.maximized) {
         win.maximize();
       }
-      if (IS_DEV_MODE) {
-        win.webContents.openDevTools({ mode: 'detach' });
+      const autoOpenDevTools = process.env.INCOGNIDE_AUTO_DEVTOOLS === '1';
+      if (autoOpenDevTools) {
+        win.webContents.openDevTools({ mode: 'right' });
       }
     });
 
@@ -3281,6 +3264,59 @@ applyAppMenu();
     return win;
 }
 
+function createManagerWindow() {
+  if (managerWindow && !managerWindow.isDestroyed()) {
+    if (managerWindow.isMinimized()) managerWindow.restore();
+    managerWindow.focus();
+    return managerWindow;
+  }
+
+  const isMac = process.platform === 'darwin';
+  managerWindow = new BrowserWindow({
+    width: 900,
+    height: 620,
+    minWidth: 640,
+    minHeight: 420,
+    show: false,
+    title: 'Incognide Manager',
+    titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
+    ...(isMac ? { trafficLightPosition: { x: 12, y: 8 } } : {}),
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: false,
+      webviewTag: true,
+      preload: path.join(__dirname, 'preload.js'),
+    },
+  });
+
+  const isDev = process.env.NODE_ENV === 'development' || process.argv.includes('--dev');
+  if (isDev) {
+    managerWindow.loadURL(`http://localhost:${FRONTEND_PORT}/?manager=1`);
+  } else if (frontendServer) {
+    managerWindow.loadURL(`http://localhost:${FRONTEND_PORT}/?manager=1`);
+  } else {
+    managerWindow.loadURL(`file://${path.join(app.getAppPath(), 'dist', 'index.html')}?manager=1`);
+  }
+
+  managerWindow.once('ready-to-show', () => {
+    managerWindow.show();
+    if (isDev || process.env.INCOGNIDE_MANAGER_DEVTOOLS === '1') {
+      managerWindow.webContents.openDevTools({ mode: 'right' });
+    }
+  });
+
+  managerWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    console.error('manager failed to load', validatedURL, errorCode, errorDescription);
+  });
+
+  managerWindow.on('closed', () => {
+    managerWindow = null;
+  });
+
+  return managerWindow;
+}
+
 const { registerAll } = require('./ipc');
 registerAll({
   ipcMain,
@@ -3458,8 +3494,40 @@ ipcMain.handle('report-saved-workspaces', async (_event, paths) => {
   for (const p of normalized) {
     addOpenWorkspace(p);
   }
-  await restoreOpenWorkspaces();
   return { success: true, count: normalized.length };
+});
+
+ipcMain.handle('reopen-closed-windows', async () => {
+  const restored = await restoreOpenWorkspaces();
+  return { success: true, restored };
+});
+
+ipcMain.handle('get-saved-workspaces', async () => {
+  try {
+    const paths = loadOpenWorkspaces();
+    const statPromises = paths.map(async (folderPath) => {
+      let lastAccessed = null;
+      try {
+        const statePath = path.join(INCOGNIDE_HOME, 'window_state.json');
+      } catch {}
+      return { folderPath, lastAccessed };
+    });
+    return await Promise.all(statPromises);
+  } catch (err) {
+    log(`[WORKSPACES] Error listing saved workspaces: ${err.message}`);
+    return [];
+  }
+});
+
+ipcMain.handle('forget-workspace', async (_event, folderPath) => {
+  try {
+    if (!folderPath || typeof folderPath !== 'string') return { success: false, error: 'invalid path' };
+    removeOpenWorkspace(folderPath);
+    return { success: true };
+  } catch (err) {
+    log(`[WORKSPACES] Error forgetting workspace: ${err.message}`);
+    return { success: false, error: err.message };
+  }
 });
 
 ipcMain.handle('close-window-by-id', async (_event, windowId) => {
@@ -3797,6 +3865,98 @@ ipcMain.handle('backend:restart', async () => {
   } catch (err) {
     log(`Backend restart error: ${err.message}`);
     return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('backend:stop', async () => {
+  try {
+    await killBackendProcess();
+    return { success: true };
+  } catch (err) {
+    log(`Backend stop error: ${err.message}`);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('backend:start', async () => {
+  try {
+    if (backendProcess && backendProcess.exitCode === null) {
+      return { success: false, error: 'Backend already running' };
+    }
+    if (!_backendPath || !_backendEnv) {
+      const savedPython = getBackendPythonPath();
+      if (!savedPython) {
+        return { success: false, error: 'No backend spawn config. Use Install / Repair to configure Python.' };
+      }
+      _backendPath = savedPython;
+      _backendEnv = {
+        ...process.env,
+        INCOGNIDE_PORT: String(BACKEND_PORT),
+        INCOGNIDE_FRONTEND_PORT: String(FRONTEND_PORT),
+        INCOGNIDE_KG_REGISTRY: path.join(INCOGNIDE_HOME, 'kg_registry.yaml'),
+        FLASK_DEBUG: '1',
+        PYTHONUNBUFFERED: '1',
+        PYTHONIOENCODING: 'utf-8',
+        HOME: os.homedir(),
+        INCOGNIDE_BASE: path.join(os.homedir(), '.incognide'),
+        INCOGNIDE_HOME: INCOGNIDE_HOME,
+        INCOGNIDE_DATA_DIR: path.join(INCOGNIDE_HOME, 'data'),
+      };
+      _spawnArgs = ['-m', 'npcpy.serve'];
+    }
+    backendProcess = spawnBackendProcess(_backendPath, _spawnArgs, 'start', _backendEnv);
+    const ready = await waitForServer(45, 1000, backendProcess);
+    if (ready && backendProcess && backendProcess.exitCode === null) {
+      log('Backend started successfully');
+      return { success: true };
+    }
+    return { success: false, error: 'Server did not become ready' };
+  } catch (err) {
+    log(`Backend start error: ${err.message}`);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('open-manager-window', async () => {
+  createManagerWindow();
+  return { success: true };
+});
+
+ipcMain.handle('close-manager-window', async () => {
+  if (managerWindow && !managerWindow.isDestroyed()) {
+    managerWindow.close();
+  }
+  return { success: true };
+});
+
+ipcMain.handle('open-account-in-main', async () => {
+  const win = BrowserWindow.getAllWindows().find(w => w !== managerWindow && !w.isDestroyed());
+  if (win) {
+    if (win.isMinimized()) win.restore();
+    win.focus();
+    win.webContents.send('menu-open-settings');
+    return { success: true };
+  }
+  return { success: false, error: 'No main window available' };
+});
+
+ipcMain.handle('get-app-version', async () => {
+  return app.getVersion();
+});
+
+ipcMain.handle('check-for-updates', async () => {
+  try {
+    const response = await fetch('https://api.github.com/repos/NPC-Worldwide/incognide/releases/latest', {
+      headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': `incognide-${app.getVersion()}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) {
+      return { error: `GitHub API returned ${response.status}` };
+    }
+    const data = await response.json();
+    return { latestVersion: data.tag_name?.replace(/^v/, '') || null, url: data.html_url || null };
+  } catch (err) {
+    return { error: err.message };
   }
 });
 

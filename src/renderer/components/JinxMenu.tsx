@@ -370,7 +370,7 @@ const labelExecution = async (messageId, label) => {
                         >
                             <Wrench size={14} className="text-blue-400" />
                             <span className="flex-1 truncate text-left">
-                                {selectedJinx ? (selectedJinx.jinx_name || selectedJinx.name) : 'Select a Jinx'}
+                                {selectedJinx ? (selectedJinx.jinx_name || selectedJinx.name) : 'Select a Tool'}
                             </span>
                             <ChevronDown size={12} className={`transition-transform flex-shrink-0 ${dropdownOpen ? 'rotate-180' : ''}`} />
                         </button>
@@ -397,7 +397,7 @@ const labelExecution = async (messageId, label) => {
                                 rounded text-sm flex items-center
                                 justify-center gap-2"
                         >
-                            <Plus size={16} /> New Jinx
+                            <Plus size={16} /> New Tool
                         </button>
                     </div>
 
@@ -411,7 +411,7 @@ const labelExecution = async (messageId, label) => {
                                             <div>
                                                 <label className="block text-xs
                                                     theme-text-secondary mb-1">
-                                                    Jinx Name
+                                                    Tool Name
                                                 </label>
                                                 <input
                                                     className="w-full theme-input
@@ -679,7 +679,7 @@ const labelExecution = async (messageId, label) => {
                         ) : (
                             <div className="flex items-center justify-center
                                 h-full theme-text-secondary">
-                                Select or create a Jinx
+                                Select or create a Tool
                             </div>
                         )}
 
@@ -701,7 +701,7 @@ const labelExecution = async (messageId, label) => {
                     flex justify-between items-center flex-shrink-0">
                     <h3 className="text-lg font-semibold flex
                         items-center gap-2">
-                        <Wrench className="text-blue-400" /> Jinx Editor
+                        <Wrench className="text-blue-400" /> Tool Editor
                     </h3>
                     <div className="flex items-center gap-4">
                         <button
@@ -775,14 +775,14 @@ const JinxSelectorDropdown = ({
                     type="text"
                     value={dropdownSearch}
                     onChange={(e) => setDropdownSearch(e.target.value)}
-                    placeholder="Search jinxes..."
+                    placeholder="Search tools..."
                     className="w-full theme-input border theme-border rounded px-2 py-1 text-xs theme-text-primary placeholder-gray-500 focus:outline-none focus:border-blue-500/50"
                     onKeyDown={(e) => e.stopPropagation()}
                 />
             </div>
             <div className="max-h-72 overflow-y-auto p-1">
                 {filtered.length === 0 ? (
-                    <div className="px-2 py-3 text-xs text-gray-500 text-center">No jinxes found</div>
+                    <div className="px-2 py-3 text-xs text-gray-500 text-center">No tools found</div>
                 ) : (
                     (() => {
                         const byFolder: Record<string, any[]> = {};
