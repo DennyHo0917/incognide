@@ -575,7 +575,7 @@ const ChatInterface = ({ onRerunSetup }: { onRerunSetup?: () => void }) => {
     const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(() => {
         try { return localStorage.getItem('incognide_rightSidebarCollapsed') === 'true'; } catch { return false; }
     });
-    const RIGHT_SIDEBAR_MIN_WIDTH = 260;
+    const RIGHT_SIDEBAR_MIN_WIDTH = 192;
     const [rightSidebarWidth, setRightSidebarWidth] = useState(() => {
         try {
             const v = parseInt(localStorage.getItem('incognide_rightSidebarWidth') || String(RIGHT_SIDEBAR_MIN_WIDTH));
@@ -7741,6 +7741,8 @@ const statusBar = bottomBarCollapsed ? (
         sidebarCollapsed={sidebarCollapsed}
         onExpandSidebar={() => setSidebarCollapsed(false)}
         sidebarWidth={sidebarWidth}
+        rightSidebarCollapsed={rightSidebarCollapsed}
+        rightSidebarWidth={rightSidebarWidth}
         onCollapse={() => { setBottomBarCollapsed(true); localStorage.setItem('incognide_bottomBarCollapsed', 'true'); }}
         openMode={openMode}
         onToggleOpenMode={() => { setOpenMode(m => { const next = m === 'pane' ? 'tab' : 'pane'; localStorage.setItem('incognide_openMode', next); if (currentPath && rootLayoutNode) { const data = serializeWorkspace(rootLayoutNode, currentPath, contentDataRef.current, activeContentPaneId, next); if (data) saveWorkspaceToStorage(currentPath, data); } return next; }); }}

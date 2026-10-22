@@ -48,6 +48,8 @@ interface StatusBarProps {
     isDarkMode?: boolean;
     toggleTheme?: () => void;
     onOpenNewWindow?: () => void;
+    rightSidebarCollapsed?: boolean;
+    rightSidebarWidth?: number;
     createNewTerminal?: (shellType: string) => void;
     createNewConversation?: (opts?: { contentType?: 'chat' | 'agent'; npc?: string; model?: string }) => void;
     createNewBrowser?: (url?: string) => void;
@@ -85,6 +87,8 @@ const StatusBar: React.FC<StatusBarProps> = ({
     isDarkMode,
     toggleTheme,
     onOpenNewWindow,
+    rightSidebarCollapsed,
+    rightSidebarWidth,
     createNewTerminal,
     createNewConversation,
     createNewBrowser,
@@ -93,6 +97,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
     onDismissDownload,
 }) => {
     const buttonGroupWidth = sidebarCollapsed ? 192 : (sidebarWidth || 192);
+    const rightButtonGroupWidth = rightSidebarCollapsed ? 192 : (rightSidebarWidth || 192);
     const aiEnabled = useAiEnabled();
     const [downloadPopoverOpen, setDownloadPopoverOpen] = useState(false);
     const [sshMenuOpen, setSshMenuOpen] = useState(false);
@@ -263,7 +268,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
 
             <div className="flex-1" />
 
-            <div className="grid grid-cols-3 h-full -mr-3" style={{ width: buttonGroupWidth }}>
+            <div className="grid grid-cols-3 h-full -mr-3" style={{ width: rightButtonGroupWidth }}>
                 <button
                     onClick={() => (window as any).api?.windowControls?.toggleDevTools?.()}
                     className="flex items-center justify-center h-full hover:bg-teal-500/20 transition-all bg-transparent text-gray-400 hover:text-blue-400"

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import {
     FileJson, Users, Wrench, Clock, Database, Plus, Trash2, Play, Pause, Server, Mail, Save,
-    Brain, GitBranch, Cpu, Code, Mic, Globe, Eye, EyeOff, Check, ChevronRight, Zap, RefreshCw, BrainCircuit
+    Brain, GitBranch, Cpu, Code, Mic, Globe, Eye, EyeOff, Check, ChevronRight, Zap, RefreshCw, BrainCircuit, Search
 } from 'lucide-react';
-import { Input, TeamManagementShell, TeamSelector, type TeamSelectorTeam } from 'npcts';
+import { Input, TeamManagementShell, type TeamSelectorTeam } from 'npcts';
 import yaml from 'js-yaml';
 import MemoryIcon from './icons/MemoryIcon';
 import KgIcon from './icons/KgIcon';
@@ -564,6 +564,95 @@ const ResizableSplitPane: React.FC<{
 };
 
 
+const TeamSelectorLocal: React.FC<{
+    registeredTeams: Record<string, string>;
+    projectTeam?: { key: string; label: string; path: string } | null;
+    selectedTeam: string;
+    onSelectTeam: (team: string) => void;
+    discoveredTeams?: TeamSelectorTeam[];
+    scanning?: boolean;
+    onScan?: () => void;
+    onRegisterTeam?: (team: any) => void;
+    onRegisterProjectTeam?: () => void;
+    className?: string;
+    discoverError?: string | null;
+}> = ({
+    registeredTeams,
+    projectTeam,
+    selectedTeam,
+    onSelectTeam,
+    discoveredTeams = [],
+    scanning = false,
+    onScan,
+    onRegisterTeam,
+    onRegisterProjectTeam,
+    className = '',
+    discoverError = null,
+}) => {
+    return (
+        <div className={`px-3 py-1.5 ${className}`}>
+            <select
+                value={selectedTeam}
+                onChange={(e) => onSelectTeam(e.target.value)}
+                className="w-full theme-input text-xs py-1.5 px-2 rounded"
+            >
+                {Object.entries(registeredTeams).map(([key, teamPath]) => {
+                    const parentName = typeof teamPath === 'string' && teamPath.endsWith('/npc_team')
+                        ? teamPath.split('/').slice(-2)[0]
+                        : key;
+                    return <option key={key} value={key}>{parentName}</option>;
+                })}
+                {projectTeam && <option value={projectTeam.key}>{projectTeam.label} (unregistered)</option>}
+            </select>
+            {selectedTeam === projectTeam?.key && projectTeam && (
+                <button
+                    onClick={onRegisterProjectTeam}
+                    className="mt-1 w-full px-2 py-1 rounded text-[10px] bg-purple-600 hover:bg-purple-500 text-white transition flex items-center justify-center gap-1"
+                >
+                    <Plus size={10} /> Register Team
+                </button>
+            )}
+            {onScan && (
+                <button
+                    onClick={onScan}
+                    disabled={scanning}
+                    className="mt-1 w-full px-2 py-1 rounded text-[10px] theme-text-muted hover:text-white hover:bg-white/5 transition flex items-center justify-center gap-1"
+                    title="Discover team directories"
+                >
+                    <Search size={10} /> {scanning ? 'Scanning...' : 'Discover'}
+                </button>
+            )}
+            {discoverError && (
+                <div className="mt-1 text-[10px] text-red-400 px-1">{discoverError}</div>
+            )}
+            {discoveredTeams.length > 0 && (
+                <div className="mt-1 theme-bg-tertiary rounded border theme-border max-h-32 overflow-y-auto">
+                    {discoveredTeams.map((team, i) => (
+                        <div key={i} className="flex items-center justify-between px-2 py-1 border-b theme-border last:border-b-0 hover:bg-white/5 text-[10px]">
+                            <div className="flex-1 min-w-0">
+                                <span className="font-medium theme-text-primary">{team.name}</span>
+                                <span className="theme-text-muted ml-1">{team.npcCount || 0} NPC{team.npcCount !== 1 ? 's' : ''}</span>
+                            </div>
+                            {onRegisterTeam && (
+                                <button
+                                    onClick={() => onRegisterTeam(team)}
+                                    className="ml-1 px-1 py-0.5 rounded bg-purple-600 hover:bg-purple-500 text-white flex-shrink-0 text-[9px]"
+                                >
+                                    Register
+                                </button>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+            {discoveredTeams.length === 0 && !scanning && !discoverError && onScan && (
+                <div className="mt-1 text-[10px] theme-text-muted px-1">No unregistered teams found.</div>
+            )}
+        </div>
+    );
+};
+
+
 const TeamManagement: React.FC<TeamManagementProps> = ({
     isOpen,
     onClose,
@@ -919,12 +1008,21 @@ const TeamManagement: React.FC<TeamManagementProps> = ({
         }
     }, [isOpen, registeredTeams, projectTeamPath]);
 
+    const [discoverError, setDiscoverError] = useState<string | null>(null);
+
     const handleScanTeams = async () => {
         setScanning(true);
+        setDiscoverError(null);
         try {
             const result = await (window as any).api.teamsScan(currentPath);
-            if (result?.discovered) setDiscoveredTeams(result.discovered);
-        } catch {}
+            if (result?.error) {
+                setDiscoverError(result.error);
+            } else {
+                setDiscoveredTeams(result?.discovered || []);
+            }
+        } catch (err: any) {
+            setDiscoverError(err?.message || 'Team discovery failed');
+        }
         setScanning(false);
     };
 
@@ -980,7 +1078,7 @@ const TeamManagement: React.FC<TeamManagementProps> = ({
     ];
 
     const teamSelector = (
-        <TeamSelector
+        <TeamSelectorLocal
             registeredTeams={registeredTeams}
             projectTeam={projectTeamPath && projectTeamCtxName ? { key: 'project', label: projectTeamCtxName, path: projectTeamPath } : null}
             selectedTeam={selectedTeam}
@@ -990,6 +1088,7 @@ const TeamManagement: React.FC<TeamManagementProps> = ({
             onScan={handleScanTeams}
             onRegisterTeam={handleRegisterTeam}
             onRegisterProjectTeam={handleRegisterProjectTeam}
+            discoverError={discoverError}
         />
     );
 

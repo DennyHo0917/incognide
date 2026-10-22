@@ -5,10 +5,10 @@ import {
   Box, Server, Monitor, Info, RefreshCw, Play, Square, RotateCcw,
   Terminal, Maximize2, Minus, X, XIcon, Eye, Trash2, AlertCircle, CheckCircle,
   Download, ExternalLink, Cpu, HardDrive, User, Settings, Activity,
-  ChevronRight, ChevronDown, Copy, Check
+  ChevronRight, ChevronDown, Copy, Check, Users, Plus, Search
 } from 'lucide-react';
 
-type TabKey = 'overview' | 'workspaces' | 'backend' | 'device' | 'account' | 'updates' | 'models';
+type TabKey = 'overview' | 'workspaces' | 'backend' | 'device' | 'teams' | 'account' | 'updates' | 'models';
 
 type BackendStatus = 'ok' | 'unhealthy' | 'unreachable' | 'unknown';
 
@@ -565,6 +565,189 @@ const UpdatesTab: React.FC<{ version: string }> = ({ version }) => {
   );
 };
 
+const TeamsTab: React.FC<{ workspacePaths?: string[]; windowPaths?: string[] }> = ({ workspacePaths = [], windowPaths = [] }) => {
+  const [teams, setTeams] = useState<Record<string, string>>({});
+  const [discovered, setDiscovered] = useState<any[]>([]);
+  const [scanning, setScanning] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [newName, setNewName] = useState('');
+  const [newPath, setNewPath] = useState('');
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await api.teamsRead?.();
+      if (result?.error) setError(result.error);
+      else setTeams(result?.teams || {});
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load teams');
+    }
+    setLoading(false);
+  };
+
+  const save = async (updated: Record<string, string>) => {
+    setError(null);
+    try {
+      const result = await api.teamsWrite?.(updated);
+      if (result?.error) {
+        setError(result.error);
+      } else {
+        setTeams(updated);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to save teams');
+    }
+  };
+
+  const scan = async () => {
+    setScanning(true);
+    setError(null);
+    try {
+      const scanPaths = Array.from(new Set([...workspacePaths, ...windowPaths]));
+      const scanArg = scanPaths[0] || '';
+      const result = await api.teamsScan?.(scanArg);
+      if (result?.error) setError(result.error);
+      else setDiscovered(result?.discovered || []);
+    } catch (err: any) {
+      setError(err?.message || 'Team scan failed');
+    }
+    setScanning(false);
+  };
+
+  const addTeam = () => {
+    const key = newName.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+    if (!key || !newPath.trim()) return;
+    const updated = { ...teams, [key]: newPath.trim() };
+    save(updated);
+    setNewName('');
+    setNewPath('');
+  };
+
+  const removeTeam = (key: string) => {
+    const updated = { ...teams };
+    delete updated[key];
+    save(updated);
+  };
+
+  const registerDiscovered = (team: any) => {
+    const key = (team.name || '').toLowerCase().replace(/[^a-z0-9_]/g, '');
+    if (!key || teams[key]) return;
+    const updated = { ...teams, [key]: team.path };
+    save(updated);
+    setDiscovered(prev => prev.filter(t => t.path !== team.path));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  return (
+    <div className="space-y-4">
+      <div className="theme-bg-secondary border theme-border rounded p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2 theme-text-muted text-xs">
+            <Users size={14} /> Registered Teams
+          </div>
+          <button
+            onClick={load}
+            disabled={loading}
+            className="p-1 rounded hover:theme-bg-tertiary theme-text-muted disabled:opacity-50"
+            title="Refresh"
+          >
+            <RefreshCw size={14} className={classNames(loading && 'animate-spin')} />
+          </button>
+        </div>
+
+        {error && <div className="mb-3 text-sm text-rose-400">{error}</div>}
+
+        {Object.keys(teams).length === 0 && (
+          <div className="text-sm theme-text-muted mb-3">No teams registered.</div>
+        )}
+
+        <div className="space-y-2">
+          {Object.entries(teams).map(([key, teamPath]) => (
+            <div key={key} className="flex items-center justify-between px-3 py-2 rounded theme-bg-tertiary border theme-border text-xs">
+              <div className="flex-1 min-w-0">
+                <div className="font-medium theme-text-primary truncate">{key}</div>
+                <div className="theme-text-muted truncate">{teamPath}</div>
+              </div>
+              <button
+                onClick={() => removeTeam(key)}
+                className="ml-2 p-1 rounded hover:bg-rose-600/20 text-rose-400"
+                title="Remove"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 pt-4 border-t theme-border space-y-2">
+          <div className="flex items-center gap-2">
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="team name"
+              className="flex-1 px-2 py-1.5 rounded text-xs theme-bg-primary theme-text-primary border theme-border outline-none focus:border-blue-500"
+            />
+            <input
+              value={newPath}
+              onChange={(e) => setNewPath(e.target.value)}
+              placeholder="/path/to/npc_team or /path/to/project"
+              className="flex-[2] px-2 py-1.5 rounded text-xs theme-bg-primary theme-text-primary border theme-border outline-none focus:border-blue-500"
+            />
+            <button
+              onClick={addTeam}
+              disabled={!newName.trim() || !newPath.trim()}
+              className="px-3 py-1.5 rounded text-xs bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 disabled:opacity-40 flex items-center gap-1"
+            >
+              <Plus size={12} /> Add
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="theme-bg-secondary border theme-border rounded p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2 theme-text-muted text-xs">
+            <Search size={14} /> Discover Teams
+          </div>
+          <button
+            onClick={scan}
+            disabled={scanning}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 disabled:opacity-40"
+          >
+            <RefreshCw size={12} className={classNames(scanning && 'animate-spin')} />
+            {scanning ? 'Scanning…' : 'Scan'}
+          </button>
+        </div>
+
+        {discovered.length === 0 && !scanning && (
+          <div className="text-sm theme-text-muted">No unregistered teams discovered.</div>
+        )}
+
+        <div className="space-y-2">
+          {discovered.map((team, i) => (
+            <div key={i} className="flex items-center justify-between px-3 py-2 rounded theme-bg-tertiary border theme-border text-xs">
+              <div className="flex-1 min-w-0">
+                <div className="font-medium theme-text-primary truncate">{team.name || 'Unknown'}</div>
+                <div className="theme-text-muted truncate">{team.path}</div>
+                <div className="theme-text-muted">{team.npcCount || 0} NPC{team.npcCount !== 1 ? 's' : ''}</div>
+              </div>
+              <button
+                onClick={() => registerDiscovered(team)}
+                className="ml-2 px-2 py-1 rounded bg-purple-600 hover:bg-purple-500 text-white text-[10px] flex items-center gap-1"
+              >
+                <Plus size={10} /> Register
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Manager: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [state, setState] = useState<ManagerState>({ version: '', backend: null, windows: [], workspaces: [], device: null });
@@ -593,12 +776,13 @@ const Manager: React.FC = () => {
 
   const tabs: { key: TabKey; label: string; icon: React.ElementType }[] = [
     { key: 'overview', label: 'Overview', icon: Box },
-    { key: 'workspaces', label: 'Workspaces', icon: Monitor },
+    { key: 'account', label: 'Account', icon: User },
     { key: 'backend', label: 'Backend', icon: Server },
     { key: 'device', label: 'Device', icon: HardDrive },
     { key: 'models', label: 'Models', icon: Box },
-    { key: 'account', label: 'Account', icon: User },
+    { key: 'teams', label: 'Teams', icon: Users },
     { key: 'updates', label: 'Updates', icon: Download },
+    { key: 'workspaces', label: 'Workspaces', icon: Monitor },
   ];
 
   return (
@@ -650,6 +834,7 @@ const Manager: React.FC = () => {
           {activeTab === 'workspaces' && <WorkspacesTab state={state} onRefresh={refresh} loading={loading} />}
           {activeTab === 'backend' && <BackendTab health={state.backend} onRefresh={refresh} />}
           {activeTab === 'device' && <DeviceTab device={state.device} />}
+          {activeTab === 'teams' && <TeamsTab workspacePaths={state.workspaces.map(w => w.folderPath)} windowPaths={state.windows.map(w => w.folderPath).filter(Boolean) as string[]} />}
           {activeTab === 'models' && <ModelManager onOpenModelsYaml={async () => { const homeDir = await api.getHomeDir?.(); if (homeDir) api.openFile?.(`${homeDir}/.incognide/models.yaml`); }} />}
           {activeTab === 'account' && (
             <ErrorBoundary>
