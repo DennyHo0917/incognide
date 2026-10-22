@@ -19,7 +19,7 @@ import { useSidebarResize } from '../hooks/useSidebarResize';
 import { useSearch } from '../hooks/useSearch';
 import { useModelSelection } from '../hooks/useModelSelection';
 import { useMemoryAndLabeling } from '../hooks/useMemoryAndLabeling';
-import { useWorkspace } from '../hooks/useWorkspace';
+import { useWorkspace, useWorkspacePathListener } from '../hooks/useWorkspace';
 import { useRemoteConnections } from '../hooks/useRemoteConnections';
 import { RemoteConnectionDialog } from './RemoteConnectionDialog';
 import { useLayoutManager, getConversationStats, visibleMessageSlice } from '../hooks/useLayoutManager';
@@ -382,6 +382,8 @@ const ChatInterface = ({ onRerunSetup }: { onRerunSetup?: () => void }) => {
         loadConversationsWithoutAutoSelect, loadDirectoryStructureWithoutConversationLoad,
         loadDirectoryStructure,
     } = useWorkspace();
+
+    useWorkspacePathListener(setCurrentPath);
 
     const {
         connections: sshConnections,
@@ -4698,7 +4700,9 @@ const handleBrowserDialogNavigate = (url) => {
                 jinxName: queueItem.jinxName || undefined,
             });
 
+            const selectedNpc = availableNPCs.find((n: any) => n.value === queueItem.currentNPC);
             const npcName = queueItem.currentNPC?.replace(/^(project:|global:)/, '') || 'agent';
+            const npcSource = selectedNpc?.source || 'global';
 
             const currentPanes = rootLayoutNode ? collectPaneInfo(rootLayoutNode, contentDataRef.current, activeContentPaneId) : [];
             const paneSnapshot = currentPanes.map(p => ({
@@ -4722,7 +4726,7 @@ const handleBrowserDialogNavigate = (url) => {
                     model: queueItem.paneModel,
                     provider: queueItem.paneProvider,
                     npc: npcName,
-                    npcSource: 'global',
+                    npcSource,
                     streamId: newStreamId,
                     temperature: queueItem.genParams.temperature,
                     top_p: queueItem.genParams.top_p,
@@ -4739,7 +4743,7 @@ const handleBrowserDialogNavigate = (url) => {
                     model: queueItem.paneModel,
                     provider: queueItem.paneProvider,
                     npc: npcName,
-                    npcSource: 'global',
+                    npcSource,
                     attachments: queueItem.attachments.map((f: any) => {
                         if (f.path) return { name: f.name, path: f.path, size: f.size, type: f.type };
                         else if (f.data) return { name: f.name, data: f.data, size: f.size, type: f.type };

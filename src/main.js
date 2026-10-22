@@ -3228,14 +3228,14 @@ applyAppMenu();
         await new Promise(resolve => setTimeout(resolve, 100));
         win.webContents.send('blank-window');
       }
+      const effectiveFolder = folder || os.homedir();
+      if (effectiveFolder) {
+        win.webContents.send('cli-open-workspace', { folder: effectiveFolder });
+      }
       if (folder || (bookmarks && bookmarks.length > 0) || openUrl) {
         log(`[CLI] Sending workspace args to renderer: folder=${folder}, bookmarks=${bookmarks?.length || 0}, openUrl=${openUrl}`);
 
         await new Promise(resolve => setTimeout(resolve, 100));
-
-        if (folder) {
-          win.webContents.send('cli-open-workspace', { folder });
-        }
 
         if (bookmarks && bookmarks.length > 0 && folder) {
           for (const url of bookmarks) {

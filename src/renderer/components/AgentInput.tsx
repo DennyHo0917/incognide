@@ -6,7 +6,7 @@ import {
     Send, Paperclip, Maximize2, FolderTree, Minimize2, Mic, MicOff, Volume2, GitBranch, Save, Trash2, Zap, X, RefreshCw,
     FileCode, Globe, FileText, Terminal as TerminalIcon, Eye, EyeOff, ToggleLeft, ToggleRight,
     Database, BrainCircuit, Image, Bot, Users, Music, Search, BookOpen, Folder, HardDrive, HelpCircle, Clock, Settings, MessageSquare, Tag,
-    ChevronDown
+    ChevronDown, ChevronRight
 } from 'lucide-react';
 import ContextFilesPanel from './ContextFilesPanel';
 import ContextUsageMeter from './ContextUsageMeter';
@@ -167,17 +167,33 @@ const NPCDropdown: React.FC<NPCDropdownProps> = ({
 }) => {
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState('');
+    const [collapsedTeams, setCollapsedTeams] = useState<Record<string, boolean>>({});
     const [pos, setPos] = useState<{ bottom: number; left: number; width: number } | null>(null);
     const buttonRef = useRef<HTMLButtonElement>(null);
     const searchRef = useRef<HTMLInputElement>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
 
-    const filteredNPCs = useMemo(() => {
-        if (!search.trim()) return availableNPCs;
-        const q = search.toLowerCase();
-        return availableNPCs.filter((n: any) =>
-            (n.display_name || n.value || '').toLowerCase().includes(q)
-        );
+    const teamSections = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        const filtered = q
+            ? availableNPCs.filter((n: any) => (n.display_name || n.value || '').toLowerCase().includes(q))
+            : availableNPCs;
+        const byTeam: Record<string, any[]> = {};
+        for (const n of filtered) {
+            const team = n.team || 'global';
+            if (!byTeam[team]) byTeam[team] = [];
+            byTeam[team].push(n);
+        }
+        const sectionOrder: string[] = [];
+        const seen = new Set<string>();
+        for (const n of filtered) {
+            const team = n.team || 'global';
+            if (!seen.has(team)) {
+                seen.add(team);
+                sectionOrder.push(team);
+            }
+        }
+        return { sections: sectionOrder.map(team => ({ team, npcs: byTeam[team] })) };
     }, [availableNPCs, search]);
 
     const label = loading ? '...' : error ? 'Error' :
@@ -243,7 +259,8 @@ const NPCDropdown: React.FC<NPCDropdownProps> = ({
     };
 
     const selectAll = () => {
-        onChangeSelected(filteredNPCs.map((n: any) => n.value));
+        const allValues = teamSections.sections.flatMap((s: any) => s.npcs.map((n: any) => n.value));
+        onChangeSelected(allValues);
     };
 
     const reset = () => {
@@ -287,26 +304,59 @@ const NPCDropdown: React.FC<NPCDropdownProps> = ({
                 </div>
             </div>
             <div className="max-h-64 overflow-y-auto p-1">
-                {filteredNPCs.map((npc: any) => {
-                    const value = npc.value;
-                    const checked = selectedNPCs.includes(value);
-                    return (
+                {teamSections.sections.length === 0 && (
+                    <div className="px-2 py-3 text-xs text-gray-500 text-center">No agents found</div>
+                )}
+                {teamSections.sections.map((section: any) => {
+                    const team = section.team;
+                    const npcs = section.npcs;
+                    const single = npcs.length === 1;
+                    const collapsed = collapsedTeams[team] ?? false;
+                    const header = (
                         <div
-                            key={`${npc.source || 'npc'}-${value}`}
-                            className={`px-2 py-1.5 text-xs rounded cursor-pointer flex items-center gap-2 transition-all ${checked ? 'bg-green-500/20 text-green-200' : 'hover:bg-white/5'}`}
-                            onClick={() => toggleNpc(value)}
+                            key={`team-header-${team}`}
+                            className="px-2 py-1 flex items-center gap-1 text-[10px] text-gray-400 uppercase tracking-wide cursor-pointer hover:text-gray-200"
+                            onClick={() =>
+                                setCollapsedTeams(prev => ({ ...prev, [team]: !collapsed }))
+                            }
                         >
-                            <div className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center flex-shrink-0 ${checked ? 'bg-green-500 border-green-500' : 'border-gray-600'}`}>
-                                {checked && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                            </div>
-                            <span className="truncate flex-1">{npc.display_name || value}</span>
-                            <span className="text-[9px] text-gray-600 flex-shrink-0">{sourceIcon(npc.source)}</span>
+                            {!single && (
+                                <span className="flex items-center justify-center w-3 h-3 flex-shrink-0">
+                                    {collapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
+                                </span>
+                            )}
+                            <span className="truncate">{team}</span>
+                            {!single && <span className="text-[9px] text-gray-600 ml-auto">{npcs.length}</span>}
+                        </div>
+                    );
+                    const list = (single || !collapsed) && (
+                        <div className="flex flex-col">
+                            {npcs.map((npc: any) => {
+                                const value = npc.value;
+                                const checked = selectedNPCs.includes(value);
+                                return (
+                                    <div
+                                        key={`${npc.source || 'npc'}-${value}`}
+                                        className={`px-2 py-1.5 text-xs rounded cursor-pointer flex items-center gap-2 transition-all ${checked ? 'bg-green-500/20 text-green-200' : 'hover:bg-white/5'}`}
+                                        onClick={() => toggleNpc(value)}
+                                    >
+                                        <div className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center flex-shrink-0 ${checked ? 'bg-green-500 border-green-500' : 'border-gray-600'}`}>
+                                            {checked && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                                        </div>
+                                        <span className="truncate flex-1">{npc.display_name || value}</span>
+                                        <span className="text-[9px] text-gray-600 flex-shrink-0">{sourceIcon(npc.source)}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    );
+                    return (
+                        <div key={`section-${team}`} className="flex flex-col mb-1 last:mb-0">
+                            {header}
+                            {list}
                         </div>
                     );
                 })}
-                {filteredNPCs.length === 0 && (
-                    <div className="px-2 py-3 text-xs text-gray-500 text-center">No agents found</div>
-                )}
             </div>
         </div>
     );
@@ -372,6 +422,7 @@ const AgentInput: React.FC<AgentInputProps> = (props) => {
     const audioChunksRef = useRef<Blob[]>([]);
     const containerRef = useRef<HTMLDivElement>(null);
     const mcpDropdownRef = useRef<HTMLDivElement>(null);
+    const initialEnabledToolNamesRef = useRef<string[]>([]);
 
     const [localInput, setLocalInput] = useState(() => {
         try { return contentDataRef?.current?.[paneId]?.localInput || ''; } catch { return ''; }
@@ -769,6 +820,7 @@ const AgentInput: React.FC<AgentInputProps> = (props) => {
                 }));
                 setAvailableMcpTools(npcToolDefs);
                 const npcToolNames = npcTools.filter((t: any) => t.enabled).map((t: any) => t.name);
+                initialEnabledToolNamesRef.current = npcToolNames;
                 setSelectedMcpTools(npcToolNames);
                 setEnabledServers(new Set(['__npc__']));
             }
@@ -795,37 +847,36 @@ const AgentInput: React.FC<AgentInputProps> = (props) => {
     }, [executionMode]);
 
     useEffect(() => {
-        if (availableMcpServers.length > 0) {
-            setLocalMcpServers(availableMcpServers);
-            const allPaths = availableMcpServers.map((s: any) => s.serverPath).filter(Boolean);
-            setEnabledServers(new Set(allPaths));
-            (async () => {
-                setMcpToolsLoading(true);
-                const allTools: any[] = [];
-                for (const serverPath of allPaths) {
-                    try {
-                        const res = await ensureServerAndListTools(serverPath);
-                        if (!res.error) {
-                            const serverLabel = getFileName(serverPath)?.replace(/\.py$/, '') || serverPath;
-                            const newTools = (res.tools || []).map((t: any) => ({
-                                ...t,
-                                _source: t._source || `mcp:${serverLabel}`,
-                                _serverPath: serverPath,
-                            }));
-                            const existingNames = new Set(allTools.map((t: any) => t.function?.name));
-                            const unique = newTools.filter((t: any) => !existingNames.has(t.function?.name));
-                            allTools.push(...unique);
-                        }
-                    } catch (err: any) {
-                        console.error('[MCP] Failed to load tools from server:', err);
+        if (!availableMcpServers.length || currentNPC) return;
+        setLocalMcpServers(availableMcpServers);
+        const allPaths = availableMcpServers.map((s: any) => s.serverPath).filter(Boolean);
+        setEnabledServers(new Set(allPaths));
+        (async () => {
+            setMcpToolsLoading(true);
+            const allTools: any[] = [];
+            for (const serverPath of allPaths) {
+                try {
+                    const res = await ensureServerAndListTools(serverPath);
+                    if (!res.error) {
+                        const serverLabel = getFileName(serverPath)?.replace(/\.py$/, '') || serverPath;
+                        const newTools = (res.tools || []).map((t: any) => ({
+                            ...t,
+                            _source: t._source || `mcp:${serverLabel}`,
+                            _serverPath: serverPath,
+                        }));
+                        const existingNames = new Set(allTools.map((t: any) => t.function?.name));
+                        const unique = newTools.filter((t: any) => !existingNames.has(t.function?.name));
+                        allTools.push(...unique);
                     }
+                } catch (err: any) {
+                    console.error('[MCP] Failed to load tools from server:', err);
                 }
-                setAvailableMcpTools(allTools);
-                setSelectedMcpTools(allTools.map((t: any) => t.function?.name).filter(Boolean));
-                setMcpToolsLoading(false);
-            })();
-        }
-    }, [availableMcpServers]);
+            }
+            setAvailableMcpTools(allTools);
+            setSelectedMcpTools(allTools.map((t: any) => t.function?.name).filter(Boolean));
+            setMcpToolsLoading(false);
+        })();
+    }, [availableMcpServers, currentNPC]);
 
 
     const [jinxSearch, setJinxSearch] = useState('');
@@ -1816,17 +1867,21 @@ const AgentInput: React.FC<AgentInputProps> = (props) => {
 
                     <div className="relative flex-1 min-w-0 w-1/3">
                         <ToolDropdown
+                            mode="multi"
                             tools={agentTools}
-                            selectedTool={selectedJinx}
-                            onSelectTool={(tool) => {
-                                setSelectedJinx(tool);
-                                setExecutionMode('tool_agent');
+                            selectedTools={selectedMcpTools}
+                            onToggleTool={(tool, selected) => {
+                                setSelectedMcpTools(prev => {
+                                    const names = new Set(prev);
+                                    if (selected) names.add(tool.name);
+                                    else names.delete(tool.name);
+                                    return Array.from(names);
+                                });
                             }}
                             onClearTool={() => {
-                                setSelectedJinx(null);
-                                setExecutionMode('tool_agent');
+                                setSelectedMcpTools(initialEnabledToolNamesRef.current);
                             }}
-                            loading={false}
+                            loading={npcToolsLoading}
                             className="w-full"
                         />
                     </div>
