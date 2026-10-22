@@ -941,13 +941,44 @@ const AgentInput: React.FC<AgentInputProps> = (props) => {
     const hasJinxContent = false;
 
 
+    const agentTools = useMemo(() => {
+        const seen = new Set<string>();
+        const merged: any[] = [];
+        for (const t of npcResolvedTools || []) {
+            const name = t?.name || t?.jinx_name;
+            if (!name || seen.has(name.toLowerCase())) continue;
+            seen.add(name.toLowerCase());
+            merged.push({
+                name,
+                description: t?.description || '',
+                group: 'agent',
+                enabled: !!t?.enabled,
+                inputs: t?.inputs || [],
+                _source: t?.source,
+            });
+        }
+        for (const j of jinxesToDisplay || []) {
+            const name = j?.name || j?.jinx_name;
+            if (!name || seen.has(name.toLowerCase())) continue;
+            seen.add(name.toLowerCase());
+            merged.push({
+                name,
+                description: j?.description || '',
+                group: j?.group || 'project',
+                enabled: false,
+                inputs: j?.inputs || [],
+            });
+        }
+        return merged;
+    }, [npcResolvedTools, jinxesToDisplay]);
+
     const filteredJinxes = useMemo(() => {
-        if (!jinxSearch.trim()) return jinxesToDisplay;
+        if (!jinxSearch.trim()) return agentTools;
         const q = jinxSearch.toLowerCase();
-        return jinxesToDisplay.filter((j: any) =>
+        return agentTools.filter((j: any) =>
             j.name?.toLowerCase().includes(q) || j.group?.toLowerCase().includes(q) || j.description?.toLowerCase().includes(q)
         );
-    }, [jinxesToDisplay, jinxSearch]);
+    }, [agentTools, jinxSearch]);
 
 
     useEffect(() => {
@@ -1785,7 +1816,7 @@ const AgentInput: React.FC<AgentInputProps> = (props) => {
 
                     <div className="relative flex-1 min-w-0 w-1/3">
                         <ToolDropdown
-                            tools={jinxesToDisplay}
+                            tools={agentTools}
                             selectedTool={selectedJinx}
                             onSelectTool={(tool) => {
                                 setSelectedJinx(tool);

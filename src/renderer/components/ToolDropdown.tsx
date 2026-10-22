@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Wrench, ChevronDown, X } from 'lucide-react';
+import { Wrench, ChevronDown, X, Check } from 'lucide-react';
 
 interface ToolDropdownProps {
     tools: any[];
@@ -111,6 +111,7 @@ export const ToolDropdown: React.FC<ToolDropdownProps> = ({
                 )}
                 {filteredTools.map((tool: any) => {
                     const isSelected = selectedTool && selectedTool.name === tool.name;
+                    const isEnabled = !!tool.enabled;
                     return (
                         <button
                             key={`${tool.origin || 'tool'}-${tool.name}`}
@@ -128,6 +129,11 @@ export const ToolDropdown: React.FC<ToolDropdownProps> = ({
                                 <span className="font-medium truncate">{tool.name}</span>
                                 {tool.group && (
                                     <span className="text-[9px] px-1 py-0.5 rounded bg-gray-700/50 text-gray-400 flex-shrink-0">{tool.group}</span>
+                                )}
+                                {isEnabled && (
+                                    <span className="ml-auto flex items-center gap-1 text-[9px] text-emerald-400 flex-shrink-0">
+                                        <Check size={10} /> enabled
+                                    </span>
                                 )}
                             </div>
                             {tool.description && (
