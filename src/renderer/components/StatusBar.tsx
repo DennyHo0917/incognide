@@ -3,7 +3,7 @@ import {
     MessageSquare, Terminal, Globe, FileText, File as FileIcon,
     BrainCircuit, Bot, Zap, Users, Database, ChevronDown,
     GitBranch, Image, Columns, Layers,
-    Server, Sun, Moon, X, Download, FolderOpen, ExternalLink, LayoutGrid, RefreshCw
+    Server, Sun, Moon, X, Download, FolderOpen, ExternalLink, LayoutGrid, Check, Wrench
 } from 'lucide-react';
 import npcLogo from '../../assets/icon.png';
 import { useAiEnabled } from './AiFeatureContext';
@@ -54,34 +54,7 @@ interface StatusBarProps {
     activeDownloads?: Record<string, any>;
     onOpenDownloadedFile?: (path: string) => void;
     onDismissDownload?: (filename: string) => void;
-    pomodoroActive?: boolean;
-    pomodoroPhase?: 'work' | 'break';
-    pomodoroSecondsLeft?: number;
-    onTogglePomodoro?: () => void;
-    onOpenPomodoroConfig?: () => void;
-    pomodoroConfigOpen?: boolean;
-    pomodoroWorkMins?: number;
-    pomodoroBreakMins?: number;
-    onPomodoroWorkChange?: (mins: number) => void;
-    onPomodoroBreakChange?: (mins: number) => void;
-    pomodoroSchedule?: Array<{ days: number[]; startHour: number; startMinute: number }>;
-    onPomodoroScheduleChange?: (schedule: Array<{ days: number[]; startHour: number; startMinute: number }>) => void;
 }
-
-const tomatoIcon = (active: boolean, phase: 'work' | 'break') => (
-    <svg width="16" height="16" viewBox="0 0 24 24">
-        <ellipse cx="12" cy="14" rx="9" ry="8" fill={active ? (phase === 'work' ? '#ef4444' : '#22c55e') : '#9ca3af'} />
-        <ellipse cx="9" cy="12" rx="3" ry="2.5" fill="rgba(255,255,255,0.2)" />
-        <path d="M12 6 Q12 3 10 2" stroke="#22c55e" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-        <path d="M12 5 Q15 3 17 4 Q15 5.5 12 5" fill="#22c55e" />
-    </svg>
-);
-
-const formatPomodoroTime = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
-};
 
 const StatusBar: React.FC<StatusBarProps> = ({
     paneItems,
@@ -118,18 +91,6 @@ const StatusBar: React.FC<StatusBarProps> = ({
     activeDownloads = {},
     onOpenDownloadedFile,
     onDismissDownload,
-    pomodoroActive = false,
-    pomodoroPhase = 'work',
-    pomodoroSecondsLeft = 25 * 60,
-    onTogglePomodoro,
-    onOpenPomodoroConfig,
-    pomodoroConfigOpen = false,
-    pomodoroWorkMins = 25,
-    pomodoroBreakMins = 5,
-    onPomodoroWorkChange,
-    onPomodoroBreakChange,
-    pomodoroSchedule = [],
-    onPomodoroScheduleChange,
 }) => {
     const buttonGroupWidth = sidebarCollapsed ? 192 : (sidebarWidth || 192);
     const aiEnabled = useAiEnabled();
@@ -138,21 +99,6 @@ const StatusBar: React.FC<StatusBarProps> = ({
     const [passwordPromptId, setPasswordPromptId] = useState<string | null>(null);
     const [passwordInput, setPasswordInput] = useState('');
     const [currentTime, setCurrentTime] = useState(new Date());
-    const [updateState, setUpdateState] = useState<{ checking: boolean; latest: string | null; current: string | null; error: string | null }>({ checking: false, latest: null, current: null, error: null });
-
-    useEffect(() => {
-        (window as any).api?.getAppVersion?.().then((v: string) => setUpdateState(s => ({ ...s, current: v || null })));
-    }, []);
-
-    const checkUpdates = async () => {
-        setUpdateState(s => ({ ...s, checking: true, error: null }));
-        try {
-            const result = await (window as any).api?.checkForUpdates?.();
-            setUpdateState(s => ({ ...s, checking: false, latest: result?.latestVersion || null, error: result?.error || null }));
-        } catch (err) {
-            setUpdateState(s => ({ ...s, checking: false, error: String(err) }));
-        }
-    };
 
     useEffect(() => {
         const interval = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -180,7 +126,6 @@ const StatusBar: React.FC<StatusBarProps> = ({
                     </button>
                 )}
                 <button
-                    data-tutorial="manager-button"
                     onClick={() => (window as any).api?.openManagerWindow?.()}
                     className="flex items-center justify-center h-full hover:bg-teal-500/20 transition-all bg-transparent text-gray-400 hover:text-blue-400"
                     title="Open Manager"
@@ -318,14 +263,13 @@ const StatusBar: React.FC<StatusBarProps> = ({
 
             <div className="flex-1" />
 
-            <div className="grid grid-cols-3 h-full" style={{ width: buttonGroupWidth }}>
+            <div className="grid grid-cols-3 h-full -mr-3" style={{ width: buttonGroupWidth }}>
                 <button
-                    onClick={checkUpdates}
-                    disabled={updateState.checking}
-                    className="flex items-center justify-center h-full hover:bg-teal-500/20 transition-all bg-transparent text-gray-400 hover:text-blue-400 disabled:opacity-50"
-                    title={updateState.latest ? `Latest: ${updateState.latest}` : updateState.error ? updateState.error : 'Check for updates'}
+                    onClick={() => (window as any).api?.windowControls?.toggleDevTools?.()}
+                    className="flex items-center justify-center h-full hover:bg-teal-500/20 transition-all bg-transparent text-gray-400 hover:text-blue-400"
+                    title="Toggle DevTools"
                 >
-                    <RefreshCw size={16} className={updateState.checking ? 'animate-spin' : ''} />
+                    <Wrench size={18} />
                 </button>
                 {onToggleOpenMode && (
                     <button data-tutorial="pane-tab-toggle" onClick={onToggleOpenMode} className={`flex items-center justify-center h-full hover:bg-teal-500/20 transition-all bg-transparent ${openMode === 'tab' ? 'text-blue-400' : 'text-gray-400 dark:text-gray-500'}`} title={openMode === 'pane' ? 'Pane mode' : 'Tab mode'}>
@@ -333,17 +277,11 @@ const StatusBar: React.FC<StatusBarProps> = ({
                     </button>
                 )}
                 <button
-                    onClick={onTogglePomodoro}
-                    onContextMenu={(e) => { e.preventDefault(); onOpenPomodoroConfig?.(); }}
-                    className={`flex items-center justify-center h-full hover:bg-teal-500/20 transition-all bg-transparent ${pomodoroActive ? (pomodoroPhase === 'work' ? 'text-red-400' : 'text-green-400') : 'text-gray-400 hover:text-blue-400'}`}
-                    title={pomodoroActive ? `${pomodoroPhase === 'work' ? 'Working' : 'Break'} — ${formatPomodoroTime(pomodoroSecondsLeft)} left (click to stop, right-click to configure)` : 'Pomodoro Timer (right-click to configure)'}
+                    onClick={() => (window as any).api?.checkForUpdates?.()}
+                    className="flex items-center justify-center h-full hover:bg-teal-500/20 transition-all bg-transparent text-green-400 hover:text-blue-400"
+                    title="Check for updates"
                 >
-                    {pomodoroActive ? (
-                        <span className="flex flex-col items-center leading-none">
-                            {tomatoIcon(true, pomodoroPhase)}
-                            <span className="font-mono tabular-nums text-[9px]">{formatPomodoroTime(pomodoroSecondsLeft)}</span>
-                        </span>
-                    ) : tomatoIcon(false, pomodoroPhase)}
+                    <Check size={18} />
                 </button>
             </div>
 
@@ -419,62 +357,6 @@ const StatusBar: React.FC<StatusBarProps> = ({
                     )}
                 </div>
             )}
-
-            <div className="relative">
-                {pomodoroConfigOpen && (
-                    <>
-                        <div className="fixed inset-0 z-40 bg-transparent" onMouseDown={() => onOpenPomodoroConfig?.()} />
-                        <div className="absolute bottom-full right-0 mb-1 theme-bg-secondary border theme-border rounded shadow-xl z-50 p-3 min-w-[260px]">
-                            <div className="text-xs font-medium theme-text-primary mb-2">Pomodoro Settings</div>
-                            <label className="flex items-center justify-between text-xs theme-text-muted mb-1.5">
-                                <span>Work (min)</span>
-                                <input type="number" min="1" max="120" value={pomodoroWorkMins} onChange={e => onPomodoroWorkChange?.(Math.max(1, parseInt(e.target.value) || 1))} className="w-14 px-1 py-0.5 rounded theme-bg-primary theme-border border text-xs text-right theme-text-primary" />
-                            </label>
-                            <label className="flex items-center justify-between text-xs theme-text-muted mb-2">
-                                <span>Break (min)</span>
-                                <input type="number" min="1" max="60" value={pomodoroBreakMins} onChange={e => onPomodoroBreakChange?.(Math.max(1, parseInt(e.target.value) || 1))} className="w-14 px-1 py-0.5 rounded theme-bg-primary theme-border border text-xs text-right theme-text-primary" />
-                            </label>
-                            <div className="border-t theme-border pt-2 mt-1">
-                                <div className="text-xs font-medium theme-text-primary mb-1.5">Schedule</div>
-                                {pomodoroSchedule.map((entry, idx) => (
-                                    <div key={idx} className="flex items-center gap-1 mb-1 text-[10px] theme-text-muted">
-                                        <span className="flex-1">
-                                            {['Su','Mo','Tu','We','Th','Fr','Sa'].filter((_, i) => entry.days.includes(i)).join(',')}
-                                            {' '}at {String(entry.startHour).padStart(2,'0')}:{String(entry.startMinute).padStart(2,'0')}
-                                        </span>
-                                        <button onClick={() => onPomodoroScheduleChange?.(pomodoroSchedule.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-300 p-0.5"><X size={10} /></button>
-                                    </div>
-                                ))}
-                                <div className="flex items-center gap-1 mt-1">
-                                    <select
-                                        id="pomo-sched-days"
-                                        multiple
-                                        className="w-20 text-[10px] theme-bg-primary theme-border border rounded p-0.5 theme-text-primary"
-                                        style={{ height: '52px' }}
-                                    >
-                                        {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d, i) => (
-                                            <option key={i} value={i}>{d}</option>
-                                        ))}
-                                    </select>
-                                    <input id="pomo-sched-time" type="time" defaultValue="09:00" className="text-[10px] theme-bg-primary theme-border border rounded px-1 py-0.5 theme-text-primary" />
-                                    <button
-                                        onClick={() => {
-                                            const sel = document.getElementById('pomo-sched-days') as HTMLSelectElement;
-                                            const timeInput = document.getElementById('pomo-sched-time') as HTMLInputElement;
-                                            const days = Array.from(sel.selectedOptions).map(o => parseInt(o.value));
-                                            const [h, m] = (timeInput.value || '09:00').split(':').map(Number);
-                                            if (days.length > 0) {
-                                                onPomodoroScheduleChange?.([...pomodoroSchedule, { days, startHour: h, startMinute: m }]);
-                                            }
-                                        }}
-                                        className="text-[10px] px-1.5 py-0.5 rounded bg-blue-600/30 text-blue-400 hover:bg-blue-600/50"
-                                    >Add</button>
-                                </div>
-                            </div>
-                        </div>
-                    </>
-                )}
-            </div>
 
             </div>
         </div>

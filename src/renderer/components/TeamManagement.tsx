@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import {
     FileJson, Users, Wrench, Clock, Database, Plus, Trash2, Play, Pause, Server, Mail, Save,
-    Brain, GitBranch, Cpu, Box, Code, Mic, Globe, Eye, EyeOff, Check, ChevronRight, Zap, RefreshCw, BrainCircuit
+    Brain, GitBranch, Cpu, Code, Mic, Globe, Eye, EyeOff, Check, ChevronRight, Zap, RefreshCw, BrainCircuit
 } from 'lucide-react';
 import { Input, TeamManagementShell, TeamSelector, type TeamSelectorTeam } from 'npcts';
 import yaml from 'js-yaml';
@@ -12,7 +12,6 @@ import CtxEditor from './CtxEditor';
 import NPCTeamMenu from './NPCTeamMenu';
 import JinxMenu from './JinxMenu';
 import MemoryManagement from './MemoryManagement';
-import ModelManager from './ModelManager';
 import StoreRegistryPanel from './StoreRegistryPanel';
 const KnowledgeGraphEditor = lazy(() => import('./KnowledgeGraphEditor'));
 
@@ -38,7 +37,7 @@ interface TeamManagementProps {
     availableModels?: any[];
 }
 
-type TabId = 'context' | 'npcs' | 'jinxes' | 'knowledge' | 'models' | 'llm-models';
+type TabId = 'context' | 'npcs' | 'jinxes' | 'knowledge' | 'models';
 
 const SqlModelsContent = ({ currentPath, teamKey, npcList = [], jinxList = [] }: { currentPath: string; teamKey?: string; npcList?: any[]; jinxList?: any[] }) => {
     const [models, setModels] = useState<any[]>([]);
@@ -971,7 +970,6 @@ const TeamManagement: React.FC<TeamManagementProps> = ({
     if (!isOpen) return null;
 
     const generalSections: { id: TabId; label: string; icon: React.ReactNode }[] = [
-        { id: 'llm-models', label: 'Models', icon: <Box size={16} /> },
     ];
 
     const teamSections: { id: TabId; label: string; icon: React.ReactNode }[] = [
@@ -1009,7 +1007,7 @@ const TeamManagement: React.FC<TeamManagementProps> = ({
             embedded={embedded}
         >
             <div className="flex-1 flex flex-col overflow-hidden">
-                {(activeTab === 'llm-models' || activeTab === 'knowledge') ? null : (
+                {activeTab === 'knowledge' ? null : (
                     <div className="flex-1 overflow-hidden p-6 flex flex-col">
                         {activeTab === 'context' && (
                             <CtxEditor
@@ -1048,11 +1046,6 @@ const TeamManagement: React.FC<TeamManagementProps> = ({
                                 teamKey={npcMenuKey}
                             />
                         )}
-                    </div>
-                )}
-                {activeTab === 'llm-models' && (
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                        <ModelManager onStartChat={startNewChat} onOpenModelsYaml={async () => { const homeDir = await (window as any).api.getHomeDir?.(); if (homeDir) onOpenFile?.(`${homeDir}/.incognide/models.yaml`); }} />
                     </div>
                 )}
                 {activeTab === 'knowledge' && (

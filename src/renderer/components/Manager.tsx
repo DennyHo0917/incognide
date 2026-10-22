@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import AccountPane from './AccountPane';
+import ModelManager from './ModelManager';
 import {
   Box, Server, Monitor, Info, RefreshCw, Play, Square, RotateCcw,
   Terminal, Maximize2, Minus, X, XIcon, Eye, Trash2, AlertCircle, CheckCircle,
@@ -7,7 +8,7 @@ import {
   ChevronRight, ChevronDown, Copy, Check
 } from 'lucide-react';
 
-type TabKey = 'overview' | 'workspaces' | 'backend' | 'device' | 'account' | 'updates';
+type TabKey = 'overview' | 'workspaces' | 'backend' | 'device' | 'account' | 'updates' | 'models';
 
 type BackendStatus = 'ok' | 'unhealthy' | 'unreachable' | 'unknown';
 
@@ -595,6 +596,7 @@ const Manager: React.FC = () => {
     { key: 'workspaces', label: 'Workspaces', icon: Monitor },
     { key: 'backend', label: 'Backend', icon: Server },
     { key: 'device', label: 'Device', icon: HardDrive },
+    { key: 'models', label: 'Models', icon: Box },
     { key: 'account', label: 'Account', icon: User },
     { key: 'updates', label: 'Updates', icon: Download },
   ];
@@ -643,11 +645,12 @@ const Manager: React.FC = () => {
             );
           })}
         </div>
-        <div className={classNames('flex-1', activeTab === 'account' ? 'overflow-hidden' : 'overflow-auto p-4')}>
+        <div className={classNames('flex-1', activeTab === 'account' || activeTab === 'models' ? 'overflow-hidden' : 'overflow-auto p-4')}>
           {activeTab === 'overview' && <OverviewTab state={state} onRefresh={refresh} loading={loading} />}
           {activeTab === 'workspaces' && <WorkspacesTab state={state} onRefresh={refresh} loading={loading} />}
           {activeTab === 'backend' && <BackendTab health={state.backend} onRefresh={refresh} />}
           {activeTab === 'device' && <DeviceTab device={state.device} />}
+          {activeTab === 'models' && <ModelManager onOpenModelsYaml={async () => { const homeDir = await api.getHomeDir?.(); if (homeDir) api.openFile?.(`${homeDir}/.incognide/models.yaml`); }} />}
           {activeTab === 'account' && (
             <ErrorBoundary>
               <AccountPane nodeId="" />
