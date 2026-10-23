@@ -10,23 +10,19 @@ interface UseLayoutManagerParams {
 
 export function visibleMessageSlice(allMessages: any[], count: number) {
     if (!Array.isArray(allMessages) || allMessages.length === 0) return [];
-    const markerIdxs: number[] = [];
-    for (let i = 0; i < allMessages.length; i++) {
-        if (allMessages[i]?.isCompression || allMessages[i]?.isCompressionIndicator || allMessages[i]?.parent_message_id) {
-            markerIdxs.push(i);
+    let lastMarkerIdx = -1;
+    for (let i = allMessages.length - 1; i >= 0; i--) {
+        const m = allMessages[i];
+        const isCompressionMarker = m?.isCompression || m?.isCompressionIndicator || (m?.role === 'user' && !!m?.parent_message_id);
+        if (isCompressionMarker) {
+            lastMarkerIdx = i;
+            break;
         }
     }
-    if (markerIdxs.length === 0) return allMessages.slice(-count);
-    const latestMarkerIdx = markerIdxs[markerIdxs.length - 1];
+    if (lastMarkerIdx === -1) return allMessages.slice(-count);
     const naturalStart = Math.max(0, allMessages.length - count);
-    if (latestMarkerIdx >= naturalStart) return allMessages.slice(-count);
-    const kept = new Set<number>();
-    for (const idx of markerIdxs) {
-        if (idx < naturalStart) kept.add(idx);
-    }
-    const tailStart = Math.max(latestMarkerIdx + 1, allMessages.length - Math.max(1, count - kept.size));
-    for (let i = tailStart; i < allMessages.length; i++) kept.add(i);
-    return Array.from(kept).sort((a, b) => a - b).map((i) => allMessages[i]);
+    if (lastMarkerIdx >= naturalStart) return allMessages.slice(-count);
+    return [allMessages[lastMarkerIdx], ...allMessages.slice(-Math.max(1, count - 1))];
 }
 
 export function getConversationStats(messages: any[]) {

@@ -1737,7 +1737,6 @@ function register(ctx) {
                     toolResults = JSON.parse(row.tool_results);
                 } catch (e) {}
             }
-
             // Normalize reloaded tool calls so the UI always has a valid shape.
             if (Array.isArray(toolCalls)) {
                 const resultById = new Map();

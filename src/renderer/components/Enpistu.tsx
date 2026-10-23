@@ -1027,7 +1027,7 @@ const ChatInterface = ({ onRerunSetup }: { onRerunSetup?: () => void }) => {
     const isPaneStreaming = useCallback((paneId: string) => {
         const paneData = contentDataRef.current[paneId];
         if (!paneData?.chatMessages?.allMessages) return false;
-        return paneData.chatMessages.allMessages.some((m: any) => m.isStreaming);
+        return paneData.chatMessages.allMessages.some((m: any) => m.isStreaming && m.streamId);
     }, []);
 
     const clampPaneZoom = useCallback((value: number) => {
@@ -4664,6 +4664,7 @@ const handleBrowserDialogNavigate = (url) => {
             top_p: queueItem.genParams.top_p,
             top_k: queueItem.genParams.top_k,
             max_tokens: queueItem.genParams.max_tokens,
+            parent_message_id: queueItem.id,
         };
 
         paneData.chatMessages.allMessages.push(userMessage, assistantPlaceholder);
@@ -4685,6 +4686,7 @@ const handleBrowserDialogNavigate = (url) => {
                 provider: queueItem.paneProvider,
                 npc: queueItem.currentNPC,
                 execution_mode: queueItem.executionMode,
+                parent_message_id: userMessage.parent_message_id || null,
             };
             window.api.saveMessage(userSavePayload).catch((err: any) => console.error('[SUBMIT] Failed to save user message:', err));
 

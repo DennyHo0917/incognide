@@ -13,7 +13,9 @@ const visibleMessageSlice = (allMessages: any[], count: number) => {
     if (!Array.isArray(allMessages) || allMessages.length === 0) return [];
     let lastMarkerIdx = -1;
     for (let i = allMessages.length - 1; i >= 0; i--) {
-        if (allMessages[i]?.isCompression || allMessages[i]?.isCompressionIndicator || allMessages[i]?.parent_message_id) {
+        const m = allMessages[i];
+        const isCompressionMarker = m?.isCompression || m?.isCompressionIndicator || (m?.role === 'user' && !!m?.parent_message_id);
+        if (isCompressionMarker) {
             lastMarkerIdx = i;
             break;
         }
@@ -1084,8 +1086,9 @@ export const usePaneAwareStreamListeners = (
             const path = currentPathRef.current;
             const payload = {
                 message_id: msg.id,
+                parent_message_id: msg.parent_message_id || null,
                 timestamp: msg.timestamp || new Date().toISOString(),
-                role: 'assistant',
+                role: msg.role === 'decision' ? 'decision' : 'assistant',
                 content: msg.content,
                 conversation_id: paneData.contentId,
                 directory_path: path,
@@ -1104,6 +1107,7 @@ export const usePaneAwareStreamListeners = (
             );
         };
 
+        const activeAssistantByStream: Record<string, any> = {};
 
         const handleStreamData = (_: any, { streamId: incomingStreamId, chunk }: any) => {
             console.log('[STREAM_LISTENER] handleStreamData:', incomingStreamId, 'chunk type:', typeof chunk, 'targetPaneId:', streamToPaneRef.current[incomingStreamId]);
@@ -1163,39 +1167,85 @@ export const usePaneAwareStreamListeners = (
             };
 
             try {
-                const msgIndex = paneData.chatMessages.allMessages.findIndex((m: any) => m.id === incomingStreamId);
-                if (msgIndex === -1) {
+                let message = paneData.chatMessages.allMessages.find((m: any) => m.id === incomingStreamId);
+                if (!message) {
+                    const streamingSiblings = paneData.chatMessages.allMessages.filter((m: any) => m.streamId === incomingStreamId && m.isStreaming);
+                    if (streamingSiblings.length > 0) {
+                        message = streamingSiblings[streamingSiblings.length - 1];
+                    }
+                }
+                if (!message) {
                     console.log('[STREAM_LISTENER] Message not found for stream', incomingStreamId, 'in pane', targetPaneId, 'allMessages count:', paneData.chatMessages.allMessages.length);
                     return;
                 }
-
-                const message = paneData.chatMessages.allMessages[msgIndex];
-                if (!message.contentParts) {
-                    message.contentParts = [];
+                let currentMsg = activeAssistantByStream[incomingStreamId] || message;
+                if (!activeAssistantByStream[incomingStreamId]) {
+                    activeAssistantByStream[incomingStreamId] = currentMsg;
                 }
-                // Track last-activity time so the stale-stream sweep measures time-since-last-chunk
-                // rather than time-since-creation (which would kill long runs and re-attached streams).
-                message.lastStreamAt = Date.now();
+                if (!currentMsg.contentParts) {
+                    currentMsg.contentParts = [];
+                }
+                currentMsg.lastStreamAt = Date.now();
+
+                const hasNonReasoningContent = (m: any) => {
+                    if (m.content) return true;
+                    if (m.toolCalls?.length > 0) return true;
+                    if (m.contentParts?.some((p: any) => p.type !== 'reasoning')) return true;
+                    return false;
+                };
+
+                const rotateAssistantMessage = () => {
+                    const nextId = generateId();
+                    const nextMsg = {
+                        id: nextId,
+                        message_id: nextId,
+                        role: 'assistant',
+                        content: '',
+                        reasoningContent: '',
+                        toolCalls: [],
+                        contentParts: [],
+                        timestamp: new Date().toISOString(),
+                        isStreaming: true,
+                        streamId: incomingStreamId,
+                        parent_message_id: currentMsg.parent_message_id,
+                        model: currentMsg.model,
+                        provider: currentMsg.provider,
+                        npc: currentMsg.npc,
+                        executionMode: paneData.executionMode,
+                    };
+                    paneData.chatMessages.allMessages.push(nextMsg);
+                    activeAssistantByStream[incomingStreamId] = nextMsg;
+                    currentMsg = nextMsg;
+                };
 
                 const appendText = (text: string) => {
                     if (!text) return;
-                    message.content = (message.content || '') + text;
-                    const lastPart = message.contentParts[message.contentParts.length - 1];
+                    currentMsg.content = (currentMsg.content || '') + text;
+                    const lastPart = currentMsg.contentParts[currentMsg.contentParts.length - 1];
                     if (lastPart && lastPart.type === 'text') {
                         lastPart.content += text;
                     } else {
-                        message.contentParts.push({ type: 'text', content: text });
+                        currentMsg.contentParts.push({ type: 'text', content: text });
+                    }
+                    if (currentMsg.role === 'assistant' && currentMsg.isStreaming) {
+                        saveAssistantMessage(paneData, currentMsg);
                     }
                 };
 
                 const appendReasoning = (text: string) => {
                     if (!text) return;
-                    message.reasoningContent = (message.reasoningContent || '') + text;
-                    const lastPart = message.contentParts[message.contentParts.length - 1];
+                    if (hasNonReasoningContent(currentMsg)) {
+                        rotateAssistantMessage();
+                    }
+                    currentMsg.reasoningContent = (currentMsg.reasoningContent || '') + text;
+                    const lastPart = currentMsg.contentParts[currentMsg.contentParts.length - 1];
                     if (lastPart && lastPart.type === 'reasoning') {
                         lastPart.content += text;
                     } else {
-                        message.contentParts.push({ type: 'reasoning', content: text });
+                        currentMsg.contentParts.push({ type: 'reasoning', content: text });
+                    }
+                    if (currentMsg.role === 'assistant' && currentMsg.isStreaming) {
+                        saveAssistantMessage(paneData, currentMsg);
                     }
                 };
 
@@ -1233,43 +1283,22 @@ export const usePaneAwareStreamListeners = (
                         }
                     }
 
-                    const merged = mergeToolCalls(message.toolCalls || [], normalizedCalls);
-
-                    // Update existing tool-call parts in place and append brand-new calls
-                    // at the end. Do NOT remove tool-call parts that no longer match: during
-                    // a live stream calls are only added/updated, never deleted, and the
-                    // previous aggressive "stale" filter was dropping valid calls when
-                    // later deltas changed ids or indices.
-                    const usedPartIndices = new Set<number>();
-                    for (const tc of merged) {
-                        const partIdx = message.contentParts.findIndex((p: any, idx: number) => {
-                            if (p.type !== 'tool_call' || usedPartIndices.has(idx)) return false;
-                            return (
-                                (tc.internalId && p.call?.internalId === tc.internalId) ||
-                                (tc.id && p.call?.id === tc.id) ||
-                                (!tc.internalId && !tc.id && !p.call?.internalId && !p.call?.id && p.call?.function?.name === tc.function?.name)
-                            );
-                        });
-                        if (partIdx >= 0) {
-                            usedPartIndices.add(partIdx);
-                            message.contentParts[partIdx].call = tc;
-                        } else {
-                            message.contentParts.push({ type: 'tool_call', call: tc });
-                        }
+                    const merged = mergeToolCalls(currentMsg.toolCalls || [], normalizedCalls);
+                    currentMsg.toolCalls = merged;
+                    const nonToolParts = currentMsg.contentParts.filter((p: any) => p.type !== 'tool_call');
+                    currentMsg.contentParts = [...nonToolParts, ...merged.map((tc: any) => ({ type: 'tool_call', call: tc }))];
+                    if (currentMsg.role === 'assistant' && currentMsg.isStreaming) {
+                        saveAssistantMessage(paneData, currentMsg);
                     }
-
-                    message.toolCalls = merged;
                 };
 
                 const applyUsage = (u: any) => {
                     if (!u) return;
-                    message.input_tokens = u.input_tokens;
-                    message.output_tokens = u.output_tokens;
-                    message.cost = u.cost;
+                    currentMsg.input_tokens = u.input_tokens;
+                    currentMsg.output_tokens = u.output_tokens;
+                    currentMsg.cost = u.cost;
                     paneData.chatStats = getConversationStats(paneData.chatMessages.allMessages);
-                    if (message.role === 'assistant') {
-                        saveAssistantMessage(paneData, message);
-                    }
+                    saveAssistantMessage(paneData, currentMsg);
                 };
 
                 if (typeof chunk === 'string') {
@@ -1285,25 +1314,21 @@ export const usePaneAwareStreamListeners = (
                                 try {
                                     const parsed = JSON.parse(dataContent);
                                     if (parsed.type === 'permission_request') {
-                                        // Server-side permission gate is waiting on a decision —
-                                        // surface it in the UI instead of dropping the event.
                                         onPermissionRequestRef.current?.({ ...parsed, streamId: incomingStreamId, paneId: targetPaneId });
                                         continue;
                                     }
                                     if (parsed.type === 'message_stop' || parsed.type === 'interrupt') {
-                                        // Backend signals end-of-stream explicitly; resolve now
-                                        // instead of waiting for socket EOF.
                                         handleStreamComplete(null, { streamId: incomingStreamId });
                                         continue;
                                     }
-                                    const result = processEvent(parsed, message.role === 'decision');
+                                    const result = processEvent(parsed, currentMsg.role === 'decision');
                                     if (result.content) appendText(result.content);
                                     if (result.reasoningContent) appendReasoning(result.reasoningContent);
                                     if (result.toolCalls) {
                                         console.log('[STREAM_LISTENER] Appending tool calls:', result.toolCalls.length);
                                         appendToolCalls(result.toolCalls);
                                     }
-                                    if (result.isDecision) message.role = 'decision';
+                                    if (result.isDecision) currentMsg.role = 'decision';
                                     if (result.usage) applyUsage(result.usage);
                                 } catch (parseErr) {
                                     console.warn('[STREAM] Failed to parse data event:', dataContent, parseErr);
@@ -1315,7 +1340,7 @@ export const usePaneAwareStreamListeners = (
                     }
                 } else if (chunk?.choices) {
                     const isDecision = chunk.choices[0]?.delta?.role === 'decision';
-                    if (isDecision) message.role = 'decision';
+                    if (isDecision) currentMsg.role = 'decision';
                     const content = chunk.choices[0]?.delta?.content || '';
                     const reasoningContent = chunk.choices[0]?.delta?.reasoning_content || '';
                     const toolCalls = chunk.choices[0]?.delta?.tool_calls || chunk.tool_calls || null;
@@ -1353,8 +1378,8 @@ export const usePaneAwareStreamListeners = (
 
                 paneData.chatMessages.messages = visibleMessageSlice(paneData.chatMessages.allMessages, paneData.chatMessages.displayedMessageCount || 20);
                 notifyPaneUpdate(targetPaneId);
-                if (message.role === 'assistant' && message.isStreaming) {
-                    saveAssistantMessage(paneData, message);
+                if (currentMsg.role === 'assistant' && currentMsg.isStreaming && !currentMsg.content) {
+                    saveAssistantMessage(paneData, currentMsg);
                 }
             } catch (err) {
                 console.error('[REACT] Error processing stream chunk:', err, 'Raw chunk:', chunk);
@@ -1366,29 +1391,13 @@ export const usePaneAwareStreamListeners = (
             if (targetPaneId) {
                 const paneData = contentDataRef.current[targetPaneId];
                 if (paneData?.chatMessages) {
-                    const msgIndex = paneData.chatMessages.allMessages.findIndex((m: any) => m.id === completedStreamId);
-                    if (msgIndex !== -1) {
-                        const msg = paneData.chatMessages.allMessages[msgIndex];
-                        msg.isStreaming = false;
-                        msg.streamId = null;
-
-                        if (Array.isArray(msg.toolCalls)) {
-                            let fixedAny = false;
-                            for (const tc of msg.toolCalls) {
-                                if (tc.status !== 'complete' && tc.status !== 'error') {
-                                    tc.status = 'error';
-                                    tc.result_preview = tc.result_preview || 'Stream ended before tool reported a result';
-                                    fixedAny = true;
-                                }
-                            }
-                            if (fixedAny && Array.isArray(msg.contentParts)) {
-                                for (const part of msg.contentParts) {
-                                    if (part.type === 'tool_call' && part.call?.status !== 'complete' && part.call?.status !== 'error') {
-                                        part.call.status = 'error';
-                                        part.call.result_preview = part.call.result_preview || 'Stream ended before tool reported a result';
-                                    }
-                                }
-                            }
+                    const streamMessages = paneData.chatMessages.allMessages.filter((m: any) => m.streamId === completedStreamId);
+                    if (streamMessages.length > 0) {
+                        const lastMsg = streamMessages[streamMessages.length - 1];
+                        for (const m of streamMessages) {
+                            m.isStreaming = false;
+                            m.streamId = null;
+                            markToolCallsInterrupted(m, 'Stream ended before tool reported a result');
                         }
 
                         const recentUserMsgs = paneData.chatMessages.allMessages.filter((m: any) => m.role === 'user').slice(-3);
@@ -1396,7 +1405,7 @@ export const usePaneAwareStreamListeners = (
 
                         if (wasAgentMode) {
                             const contexts = gatherWorkspaceContext(contentDataRef).filter((c: any) => c.type === 'file');
-                            const proposedChanges = parseAgenticResponse(msg.content, contexts);
+                            const proposedChanges = parseAgenticResponse(lastMsg.content, contexts);
 
                             if (proposedChanges.length > 0) {
                                 setAiEditModal({
@@ -1416,18 +1425,18 @@ export const usePaneAwareStreamListeners = (
                         }
 
                         const wasVoiceInput = recentUserMsgs.length > 0 && recentUserMsgs[recentUserMsgs.length - 1]?.wasVoiceInput;
-                        if (wasVoiceInput && msg.content) {
-                            triggerAutoTTS(msg.content);
+                        if (wasVoiceInput && lastMsg.content) {
+                            triggerAutoTTS(lastMsg.content);
                         }
 
-                        saveAssistantMessage(paneData, msg);
+                        for (const m of streamMessages) {
+                            saveAssistantMessage(paneData, m);
+                        }
                     }
                     paneData.chatStats = getConversationStats(paneData.chatMessages.allMessages);
                     if (paneData?.permissionRequests) {
                         paneData.permissionRequests = paneData.permissionRequests.filter((r: any) => r.streamId !== completedStreamId);
                     }
-                    // If this pane was closed while streaming and never reopened, clean up
-                    // its ghost data now that the stream is done and saved.
                     if (paneData?._closedWithActiveStream) {
                         delete contentDataRef.current[targetPaneId];
                     }
@@ -1449,27 +1458,16 @@ export const usePaneAwareStreamListeners = (
             if (targetPaneId) {
                 const paneData = contentDataRef.current[targetPaneId];
                 if (paneData?.chatMessages) {
-                    const msgIndex = paneData.chatMessages.allMessages.findIndex((m: any) => m.id === errorStreamId);
-                    if (msgIndex !== -1) {
-                        const message = paneData.chatMessages.allMessages[msgIndex];
-                        message.content += `\n\n[STREAM ERROR: ${error}]`;
-                        message.type = 'error';
-                        message.isStreaming = false;
-                        if (Array.isArray(message.toolCalls)) {
-                            for (const tc of message.toolCalls) {
-                                if (tc.status !== 'complete' && tc.status !== 'error') {
-                                    tc.status = 'error';
-                                    tc.result_preview = tc.result_preview || `Stream error: ${error}`;
-                                }
-                            }
-                            if (Array.isArray(message.contentParts)) {
-                                for (const part of message.contentParts) {
-                                    if (part.type === 'tool_call' && part.call?.status !== 'complete' && part.call?.status !== 'error') {
-                                        part.call.status = 'error';
-                                        part.call.result_preview = part.call.result_preview || `Stream error: ${error}`;
-                                    }
-                                }
-                            }
+                    const streamMessages = paneData.chatMessages.allMessages.filter((m: any) => m.streamId === errorStreamId);
+                    if (streamMessages.length > 0) {
+                        const lastMsg = streamMessages[streamMessages.length - 1];
+                        lastMsg.content += `\n\n[STREAM ERROR: ${error}]`;
+                        lastMsg.type = 'error';
+                        for (const message of streamMessages) {
+                            message.isStreaming = false;
+                            message.streamId = null;
+                            markToolCallsInterrupted(message, `Stream error: ${error}`);
+                            saveAssistantMessage(paneData, message);
                         }
                     }
                 }
@@ -1502,37 +1500,23 @@ export const usePaneAwareStreamListeners = (
                 if (!targetPaneId) continue;
                 const paneData = contentDataRef.current[targetPaneId];
                 if (!paneData?.chatMessages) continue;
-                const msg = paneData.chatMessages.allMessages.find((m: any) => m.id === streamId);
-                if (!msg || !msg.isStreaming) {
-
+                const streamMessages = paneData.chatMessages.allMessages.filter((m: any) => m.streamId === streamId);
+                if (streamMessages.length === 0 || !streamMessages.some((m: any) => m.isStreaming)) {
                     delete streamToPaneRef.current[streamId];
                     continue;
                 }
 
-                const msgTime = msg.lastStreamAt || new Date(msg.timestamp).getTime();
-                const elapsed = Date.now() - msgTime;
+                const lastActivity = Math.max(...streamMessages.map((m: any) => m.lastStreamAt || new Date(m.timestamp).getTime()));
+                const elapsed = Date.now() - lastActivity;
 
                 if (elapsed > 300000) {
                     console.warn(`[STREAM] Stale stream detected: ${streamId} (${Math.round(elapsed/1000)}s). Marking as complete.`);
-                    msg.isStreaming = false;
-                    msg.streamId = null;
-                    if (Array.isArray(msg.toolCalls)) {
-                        for (const tc of msg.toolCalls) {
-                            if (tc.status !== 'complete' && tc.status !== 'error') {
-                                tc.status = 'error';
-                                tc.result_preview = tc.result_preview || 'Stream went stale before tool reported a result';
-                            }
-                        }
+                    for (const msg of streamMessages) {
+                        msg.isStreaming = false;
+                        msg.streamId = null;
+                        markToolCallsInterrupted(msg, 'Stream went stale before tool reported a result');
+                        saveAssistantMessage(paneData, msg);
                     }
-                    if (Array.isArray(msg.contentParts)) {
-                        for (const part of msg.contentParts) {
-                            if (part.type === 'tool_call' && part.call?.status !== 'complete' && part.call?.status !== 'error') {
-                                part.call.status = 'error';
-                                part.call.result_preview = part.call.result_preview || 'Stream went stale before tool reported a result';
-                            }
-                        }
-                    }
-                    saveAssistantMessage(paneData, msg);
                     delete streamToPaneRef.current[streamId];
                     if (Object.keys(streamToPaneRef.current).length === 0) {
                         setIsStreaming(false);
