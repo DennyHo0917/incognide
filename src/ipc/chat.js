@@ -1016,6 +1016,17 @@ function register(ctx) {
         }
       } catch {}
 
+      // Include the project team for the current workspace so the backend can resolve project NPCs
+      if (data.currentPath) {
+        const projectTeamPath = path.resolve(data.currentPath, 'npc_team');
+        try {
+          await fsPromises.access(projectTeamPath);
+          if (!registeredTeams.includes(projectTeamPath)) {
+            registeredTeams.unshift(projectTeamPath);
+          }
+        } catch {}
+      }
+
       // Load conversation history from local DB to pass explicitly to backend
       let conversationMessages = [];
       if (data.conversationId) {
@@ -1726,7 +1737,6 @@ function register(ctx) {
                     toolResults = JSON.parse(row.tool_results);
                 } catch (e) {}
             }
-
             // Normalize reloaded tool calls so the UI always has a valid shape.
             if (Array.isArray(toolCalls)) {
                 const resultById = new Map();

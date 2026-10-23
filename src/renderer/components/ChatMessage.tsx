@@ -318,6 +318,7 @@ export const ChatMessage = memo(({
                         message={(() => {
                             const m = { ...message, content: displayBody, isStreaming: showStreamingIndicators } as ChatMessageData;
                             const hasToolCallParts = m.contentParts?.some((p: any) => p?.type === 'tool_call');
+                            const hasReasoningParts = m.contentParts?.some((p: any) => p?.type === 'reasoning');
                             if (hasToolCallParts) {
                                 m.toolCalls = undefined;
                             } else if (m.toolCalls?.length > 0) {
@@ -326,6 +327,12 @@ export const ChatMessage = memo(({
                                     ...m.toolCalls.map((tc: any) => ({ type: 'tool_call', call: tc }))
                                 ];
                                 m.toolCalls = undefined;
+                            }
+                            if (m.reasoningContent && !hasReasoningParts) {
+                                m.contentParts = [
+                                    { type: 'reasoning', content: m.reasoningContent },
+                                    ...(m.contentParts || [])
+                                ];
                             }
                             return m;
                         })()}

@@ -252,7 +252,8 @@ const ChatInput: React.FC<ChatInputProps> = (props) => {
         if (!Array.isArray(allMessages) || allMessages.length === 0) return [];
         const markerIdxs: number[] = [];
         for (let i = 0; i < allMessages.length; i++) {
-            if (allMessages[i]?.isCompression || allMessages[i]?.isCompressionIndicator || allMessages[i]?.parent_message_id) {
+            const m = allMessages[i];
+            if (m?.isCompression || m?.isCompressionIndicator || (m?.role === 'user' && !!m?.parent_message_id)) {
                 markerIdxs.push(i);
             }
         }

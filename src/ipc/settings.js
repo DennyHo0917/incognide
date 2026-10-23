@@ -4923,7 +4923,7 @@ function register(ctx) {
     }
   });
 
-  ipcMain.handle('teams:scan', async (event, currentPath) => {
+  ipcMain.handle('teams:scan', async (event, scanInput) => {
     try {
       const teamsPath = path.join(INCOGNIDE_HOME, 'teams.yaml');
       let registered = {};
@@ -4975,12 +4975,27 @@ function register(ctx) {
         }
       };
 
-      if (currentPath) {
-        await checkDir(currentPath, path.basename(currentPath));
+      const scanDirs = [];
+      if (typeof scanInput === 'string' && scanInput) {
+        scanDirs.push(scanInput);
+      } else if (Array.isArray(scanInput)) {
+        for (const p of scanInput) {
+          if (typeof p === 'string' && p) scanDirs.push(p);
+        }
+      }
+
+      for (const dir of scanDirs) {
+        const abs = dir.replace(/^~(?=\/|$)/, os.homedir());
+        await checkDir(abs, path.basename(abs));
+        try {
+          const parent = path.dirname(abs);
+          if (parent && parent !== abs) await checkDir(parent, path.basename(parent));
+        } catch {}
       }
 
       const wellKnown = [
         { name: 'incognide', dir: path.join(INCOGNIDE_HOME, 'npc_team') },
+        { name: 'home', dir: os.homedir() },
       ];
       for (const wk of wellKnown) {
         await checkDir(wk.dir, wk.name);
@@ -4995,13 +5010,30 @@ function register(ctx) {
         }
       } catch {}
 
-      if (currentPath) {
+      for (const dir of scanDirs) {
+        const abs = dir.replace(/^~(?=\/|$)/, os.homedir());
         try {
-          const entries = await fsPromises.readdir(currentPath);
+          const entries = await fsPromises.readdir(abs);
           for (const entry of entries) {
             if (entry.startsWith('.') || entry === 'node_modules') continue;
-            const subTeamDir = path.join(currentPath, entry, 'npc_team');
+            const subTeamDir = path.join(abs, entry, 'npc_team');
             await checkDir(subTeamDir, entry);
+            const directDir = path.join(abs, entry);
+            await checkDir(directDir, entry);
+          }
+        } catch {}
+      }
+
+      if (scanDirs.length === 0) {
+        try {
+          const home = os.homedir();
+          const entries = await fsPromises.readdir(home);
+          for (const entry of entries) {
+            if (entry.startsWith('.') || entry === 'node_modules') continue;
+            const subTeamDir = path.join(home, entry, 'npc_team');
+            await checkDir(subTeamDir, entry);
+            const directDir = path.join(home, entry);
+            await checkDir(directDir, entry);
           }
         } catch {}
       }

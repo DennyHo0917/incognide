@@ -367,11 +367,20 @@ ipcMain.on('window-close', (event) => {
 ipcMain.handle('window-is-maximized', (event) => {
     return getTargetWindow(event)?.isMaximized() ?? false;
 });
+function openAttachedDevTools(win) {
+  if (!win || win.isDestroyed()) return;
+  if (win.webContents.isDevToolsOpened()) {
+    win.webContents.closeDevTools();
+  } else {
+    win.webContents.openDevTools({ mode: 'right' });
+  }
+}
+
 ipcMain.on('window-open-devtools', (event) => {
-    getTargetWindow(event)?.webContents?.openDevTools();
+  openAttachedDevTools(getTargetWindow(event));
 });
 ipcMain.on('window-toggle-devtools', (event) => {
-    getTargetWindow(event)?.webContents?.toggleDevTools();
+  openAttachedDevTools(getTargetWindow(event));
 });
 
 ipcMain.on('menu-action', (event, { action, url }) => {
@@ -380,7 +389,7 @@ ipcMain.on('menu-action', (event, { action, url }) => {
     switch (action) {
         case 'reload': win.webContents.reload(); break;
         case 'forceReload': win.webContents.reloadIgnoringCache(); break;
-        case 'toggleDevTools': win.webContents.toggleDevTools(); break;
+        case 'toggleDevTools': openAttachedDevTools(win); break;
         case 'toggleFullScreen': win.setFullScreen(!win.isFullScreen()); break;
         case 'minimize': win.minimize(); break;
         case 'zoom': if (win.isMaximized()) win.unmaximize(); else win.maximize(); break;
@@ -2863,8 +2872,8 @@ function createWindow(cliArgs = {}) {
       if (windowState.maximized) {
         win.maximize();
       }
-      const autoOpenDevTools = process.env.INCOGNIDE_AUTO_DEVTOOLS === '1';
-      if (autoOpenDevTools) {
+      const devMode = process.env.NODE_ENV === 'development' || process.argv.includes('--dev');
+      if (devMode) {
         win.webContents.openDevTools({ mode: 'right' });
       }
     });
@@ -3219,14 +3228,14 @@ applyAppMenu();
         await new Promise(resolve => setTimeout(resolve, 100));
         win.webContents.send('blank-window');
       }
+      const effectiveFolder = folder || os.homedir();
+      if (effectiveFolder) {
+        win.webContents.send('cli-open-workspace', { folder: effectiveFolder });
+      }
       if (folder || (bookmarks && bookmarks.length > 0) || openUrl) {
         log(`[CLI] Sending workspace args to renderer: folder=${folder}, bookmarks=${bookmarks?.length || 0}, openUrl=${openUrl}`);
 
         await new Promise(resolve => setTimeout(resolve, 100));
-
-        if (folder) {
-          win.webContents.send('cli-open-workspace', { folder });
-        }
 
         if (bookmarks && bookmarks.length > 0 && folder) {
           for (const url of bookmarks) {
@@ -3938,10 +3947,6 @@ ipcMain.handle('open-account-in-main', async () => {
     return { success: true };
   }
   return { success: false, error: 'No main window available' };
-});
-
-ipcMain.handle('get-app-version', async () => {
-  return app.getVersion();
 });
 
 ipcMain.handle('check-for-updates', async () => {

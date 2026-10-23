@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Minus, Square, X, Maximize2, Wrench, LayoutGrid } from 'lucide-react';
+import { Minus, Square, X, Maximize2, LayoutGrid } from 'lucide-react';
 
 interface MenuItem {
   label: string;
@@ -179,10 +179,6 @@ const TitleBar: React.FC = () => {
     window.api?.windowControls?.close?.();
   };
 
-  const handleToggleDevTools = () => {
-    window.api?.windowControls?.toggleDevTools?.();
-  };
-
   const handleOpenManager = () => {
     (window as any).api?.openManagerWindow?.();
   };
@@ -198,17 +194,6 @@ const TitleBar: React.FC = () => {
     </button>
   );
 
-  const devToolsButton = (
-    <button
-      onClick={handleToggleDevTools}
-      className="w-9 h-9 flex items-center justify-center theme-text-muted hover:theme-bg-tertiary hover:theme-text-primary transition-colors"
-      title="Toggle Developer Tools"
-      style={{ WebkitAppRegion: 'no-drag' }}
-    >
-      <Wrench size={14} />
-    </button>
-  );
-
   if (isMac) {
     return (
       <div
@@ -221,7 +206,6 @@ const TitleBar: React.FC = () => {
         <div className="flex-1" />
         <div className="px-1 flex items-center">
           {managerButton}
-          {devToolsButton}
         </div>
       </div>
     );
@@ -238,7 +222,6 @@ const TitleBar: React.FC = () => {
 
       <div className="flex items-center" style={{ WebkitAppRegion: 'no-drag' }}>
         {managerButton}
-        {devToolsButton}
         <button
           onClick={handleMinimize}
           className="w-12 h-9 flex items-center justify-center theme-text-muted hover:theme-bg-tertiary hover:theme-text-primary transition-colors"

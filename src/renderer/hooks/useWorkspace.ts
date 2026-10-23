@@ -1,9 +1,15 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { normalizePath, loadDirectoryStructure as loadDirectoryStructureUtil } from '../components/utils';
 import { readDirectoryStructure, isRemote } from '../api/fileSystem';
 
 export function useWorkspace() {
-    const [currentPath, setCurrentPath] = useState('');
+    const [currentPath, setCurrentPath] = useState(() => {
+        try {
+            return sessionStorage.getItem('incognideLastPath') || '';
+        } catch {
+            return '';
+        }
+    });
     const [folderStructure, setFolderStructure] = useState({});
     const [baseDir, setBaseDir] = useState('');
     const [expandedFolders, setExpandedFolders] = useState(new Set());
@@ -105,4 +111,19 @@ export function useWorkspace() {
         loadDirectoryStructureWithoutConversationLoad,
         loadDirectoryStructure,
     };
+}
+
+export function useWorkspacePathListener(setCurrentPath: (path: string) => void) {
+    useEffect(() => {
+        const api = (window as any).api;
+        if (!api?.onCliOpenWorkspace) return;
+        const unsubscribe = api.onCliOpenWorkspace((data: any) => {
+            const folder = data?.folder;
+            if (folder && typeof folder === 'string') {
+                const normalized = folder.replace(/\/+$/, '');
+                setCurrentPath(normalized);
+            }
+        });
+        return unsubscribe;
+    }, [setCurrentPath]);
 }
