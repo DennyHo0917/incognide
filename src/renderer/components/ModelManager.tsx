@@ -16,6 +16,7 @@ const LOCAL_PROVIDERS: Record<string, any> = {
 export const API_PROVIDER_META: Record<string, { name: string; color: string; bgColor: string; docsUrl: string; defaultModel?: string }> = {
     anthropic: { name: 'Anthropic', color: 'text-amber-400', bgColor: 'bg-amber-600', docsUrl: 'https://docs.anthropic.com/en/docs/about-claude/models', defaultModel: 'claude-sonnet-4' },
     deepseek: { name: 'DeepSeek', color: 'text-cyan-400', bgColor: 'bg-cyan-600', docsUrl: 'https://api-docs.deepseek.com/', defaultModel: 'deepseek-chat' },
+    demonroute: { name: 'DemonRoute', color: 'text-red-400', bgColor: 'bg-red-600', docsUrl: 'https://demonroute.com/docs', defaultModel: 'hermes-3-llama-3-1-70b' },
     gemini: { name: 'Gemini', color: 'text-blue-400', bgColor: 'bg-blue-600', docsUrl: 'https://ai.google.dev/gemini-api/docs/models', defaultModel: 'gemini-2.5-flash' },
     groq: { name: 'Groq', color: 'text-orange-400', bgColor: 'bg-orange-600', docsUrl: 'https://console.groq.com/docs/models', defaultModel: 'llama-3.3-70b-versatile' },
     mistral: { name: 'Mistral', color: 'text-indigo-400', bgColor: 'bg-indigo-600', docsUrl: 'https://docs.mistral.ai/getting-started/models/models_overview/', defaultModel: 'mistral-large-latest' },
