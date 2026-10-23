@@ -5648,26 +5648,6 @@ const handleBrowserDialogNavigate = (url) => {
 
 
             if (!currentPath) {
-                let storedPath = sessionStorage.getItem(LAST_ACTIVE_PATH_KEY);
-                if (!storedPath) {
-                    try {
-                        const activeWindows = JSON.parse(localStorage.getItem(ACTIVE_WINDOWS_KEY) || '{}');
-                        const otherWindowCount = Object.keys(activeWindows).filter(id => id !== windowId).length;
-                        if (otherWindowCount === 0) {
-                            storedPath = localStorage.getItem(LAST_ACTIVE_PATH_KEY);
-                        }
-                    } catch (e) {}
-                }
-                if (storedPath) {
-                    const pathExistsResponse = await readDirectoryStructure(storedPath);
-                    if (!pathExistsResponse?.error) {
-                        setCurrentPath(storedPath);
-                    } else {
-                        sessionStorage.removeItem(LAST_ACTIVE_PATH_KEY);
-                        localStorage.removeItem(LAST_ACTIVE_PATH_KEY);
-                    }
-                }
-
                 await loadAvailableNPCs(null, setNpcsLoading, setNpcsError, setAvailableNPCs);
                 setLoading(false);
                 return;

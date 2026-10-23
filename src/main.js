@@ -3228,9 +3228,8 @@ applyAppMenu();
         await new Promise(resolve => setTimeout(resolve, 100));
         win.webContents.send('blank-window');
       }
-      const effectiveFolder = folder || os.homedir();
-      if (effectiveFolder) {
-        win.webContents.send('cli-open-workspace', { folder: effectiveFolder });
+      if (folder) {
+        win.webContents.send('cli-open-workspace', { folder });
       }
       if (folder || (bookmarks && bookmarks.length > 0) || openUrl) {
         log(`[CLI] Sending workspace args to renderer: folder=${folder}, bookmarks=${bookmarks?.length || 0}, openUrl=${openUrl}`);
@@ -3947,22 +3946,6 @@ ipcMain.handle('open-account-in-main', async () => {
     return { success: true };
   }
   return { success: false, error: 'No main window available' };
-});
-
-ipcMain.handle('check-for-updates', async () => {
-  try {
-    const response = await fetch('https://api.github.com/repos/NPC-Worldwide/incognide/releases/latest', {
-      headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': `incognide-${app.getVersion()}` },
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!response.ok) {
-      return { error: `GitHub API returned ${response.status}` };
-    }
-    const data = await response.json();
-    return { latestVersion: data.tag_name?.replace(/^v/, '') || null, url: data.html_url || null };
-  } catch (err) {
-    return { error: err.message };
-  }
 });
 
 app.on('before-quit', () => {
