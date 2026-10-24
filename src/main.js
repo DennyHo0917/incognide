@@ -55,23 +55,32 @@ const INCOGNIDE_BASE = process.env.INCOGNIDE_BASE || path.join(os.homedir(), '.i
 
 let splashWindow = null;
 
-let INCOGNIDE_HOME = process.env.INCOGNIDE_HOME || path.join(os.homedir(), '.incognide');
+// INCOGNIDE_HOME resolution: env var takes precedence over ~/.incogniderc.
+// This is standard POSIX behavior and lets tooling (e.g. the screenshot
+// capture harness) point the app at a seeded demo home without mutating
+// the user's persistent config.
+let INCOGNIDE_HOME = process.env.INCOGNIDE_HOME || '';
 if (typeof INCOGNIDE_HOME === 'string' && INCOGNIDE_HOME.startsWith('~')) {
   INCOGNIDE_HOME = INCOGNIDE_HOME.replace('~', os.homedir());
 }
-try {
-  const _rcPath = path.join(os.homedir(), '.incogniderc');
-  if (fs.existsSync(_rcPath)) {
-    const _rcContent = fs.readFileSync(_rcPath, 'utf-8');
-    const _match = _rcContent.match(/^(?:export\s+)?INCOGNIDE_HOME=(.*)$/m);
-    if (_match) {
-      let _val = _match[1].trim();
-      if ((_val.startsWith('"') && _val.endsWith('"')) || (_val.startsWith("'") && _val.endsWith("'"))) _val = _val.slice(1, -1);
-      if (_val.startsWith('~')) _val = _val.replace('~', os.homedir());
-      if (_val) INCOGNIDE_HOME = _val;
+if (!INCOGNIDE_HOME) {
+  try {
+    const _rcPath = path.join(os.homedir(), '.incogniderc');
+    if (fs.existsSync(_rcPath)) {
+      const _rcContent = fs.readFileSync(_rcPath, 'utf-8');
+      const _match = _rcContent.match(/^(?:export\s+)?INCOGNIDE_HOME=(.*)$/m);
+      if (_match) {
+        let _val = _match[1].trim();
+        if ((_val.startsWith('"') && _val.endsWith('"')) || (_val.startsWith("'") && _val.endsWith("'"))) _val = _val.slice(1, -1);
+        if (_val.startsWith('~')) _val = _val.replace('~', os.homedir());
+        if (_val) INCOGNIDE_HOME = _val;
+      }
     }
-  }
-} catch {}
+  } catch {}
+}
+if (!INCOGNIDE_HOME) {
+  INCOGNIDE_HOME = path.join(os.homedir(), '.incognide');
+}
 
 function readRcFile(rcPath) {
   const result = {};
@@ -3265,6 +3274,27 @@ applyAppMenu();
       }
 
       processPendingFileOpen(win);
+
+      // [SCREENSHOT-HOOK] Deterministic file open for automated screenshots.
+      // Only active when INCOGNIDE_SCREENSHOT_MODE=1. Reads a space-separated
+      // list of file paths from INCOGNIDE_SCREENSHOT_FILES and opens each one
+      // via the standard open-file pipeline, staggered so panes settle.
+      if (process.env.INCOGNIDE_SCREENSHOT_MODE === '1') {
+        const files = (process.env.INCOGNIDE_SCREENSHOT_FILES || '').split(';;').filter(Boolean);
+        files.forEach((fp, i) => {
+          setTimeout(() => {
+            try { handleFileOpen(fp); log(`[SCREENSHOT-HOOK] Opened ${fp}`); }
+            catch (e) { log(`[SCREENSHOT-HOOK] Failed opening ${fp}: ${e.message}`); }
+          }, 800 + i * 700);
+        });
+        if (process.env.INCOGNIDE_SCREENSHOT_URL) {
+          setTimeout(() => {
+            try {
+              win.webContents.send('open-url-in-browser', { url: process.env.INCOGNIDE_SCREENSHOT_URL });
+            } catch (e) { log(`[SCREENSHOT-HOOK] URL open failed: ${e.message}`); }
+          }, 800 + files.length * 700);
+        }
+      }
 
       startInterceptFileWatcher();
     });
