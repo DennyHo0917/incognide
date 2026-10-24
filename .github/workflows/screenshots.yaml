@@ -1,0 +1,90 @@
+name: Refresh Screenshots
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      include_manual:
+        description: 'Also capture shots marked skipInCi'
+        type: boolean
+        default: false
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          pip install python-docx python-pptx reportlab
+
+      - name: Seed fixtures
+        run: npm run screenshots:seed
+
+      - name: Build frontend (production dist/)
+        run: npm run build:vite
+
+      - name: Capture screenshots (headless X)
+        run: |
+          ARGS=""
+          if [ "${{ inputs.include_manual }}" = "true" ]; then ARGS="--include-manual"; fi
+          xvfb-run -a -s "-screen 0 1920x1200x24" npx tsx scripts/screenshots/capture.ts $ARGS
+        env:
+          CI: '1'
+
+      - name: Collect changed-file list
+        id: changes
+        run: |
+          CHANGED=$(git status --porcelain -- gh_images app_store_screenshots | awk '{print $2}' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "files=" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "files<<EOF" >> $GITHUB_OUTPUT
+            echo "$CHANGED" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Open PR with refreshed screenshots
+        if: steps.changes.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: chore/refresh-screenshots
+          delete-branch: true
+          title: 'chore: auto-refresh screenshots'
+          commit-message: 'chore: regenerate screenshots [skip ci]'
+          body: |
+            Automated screenshot refresh from the `Refresh Screenshots` workflow.
+
+            Changed images:
+            ${{ steps.changes.outputs.files }}
+
+            Review the diff, then merge to update README/store screenshots.
+          add-paths: |
+            gh_images/*.png
+            app_store_screenshots/*.png
+          labels: screenshots, automated
