@@ -26,4 +26,3 @@ test.*
 jobs/
 .env
 .env.*
-package-lock.json
