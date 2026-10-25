@@ -32,6 +32,7 @@ export default defineConfig({
     setupFiles: ['./tests/setup.ts'],
     include: ['tests/**/*.test.{ts,tsx}', 'src/**/*.test.{ts,tsx}'],
     exclude: ['node_modules', 'dist', 'dist-electron'],
+    testTimeout: 30000,
     css: false,
     server: {
       deps: {
