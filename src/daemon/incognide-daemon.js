@@ -981,6 +981,7 @@ async function main() {
       process.exit(1);
     }
   });
+  db.exec('PRAGMA busy_timeout = 10000;');
 
   startHttpServer();
 

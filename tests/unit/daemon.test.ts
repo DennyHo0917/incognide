@@ -41,6 +41,7 @@ describe('incognide-daemon', () => {
 
     // Create test DB with schema
     db = new sqlite3.Database(TEST_DB);
+    db.exec('PRAGMA busy_timeout = 10000;');
     await new Promise<void>((resolve, reject) => {
       db.exec(`
         CREATE TABLE IF NOT EXISTS scheduled_jobs (
