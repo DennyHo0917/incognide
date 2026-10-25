@@ -511,21 +511,55 @@ const DeviceTab: React.FC<{ device: DeviceInfo | null }> = ({ device }) => {
 const UpdatesTab: React.FC<{ version: string }> = ({ version }) => {
   const [checking, setChecking] = useState(false);
   const [latest, setLatest] = useState<string | null>(null);
+  const [releaseUrl, setReleaseUrl] = useState<string | null>(null);
+  const [hasUpdate, setHasUpdate] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+  const [downloaded, setDownloaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsub = api.onUpdateDownloadProgress?.((data: { progress: number }) => setDownloadProgress(data.progress));
+    return () => unsub?.();
+  }, []);
 
   const check = async () => {
     setChecking(true);
     setLatest(null);
+    setHasUpdate(false);
+    setReleaseUrl(null);
+    setDownloaded(false);
+    setDownloadProgress(null);
     setError(null);
     try {
       const result = await api.checkForUpdates?.();
-      if (result?.latestVersion) setLatest(result.latestVersion);
+      if (result?.latestVersion) {
+        setLatest(result.latestVersion);
+        setHasUpdate(!!result.hasUpdate);
+        setReleaseUrl(result.releaseUrl || null);
+      }
       else if (result?.error) setError(result.error);
       else setError('Update check unavailable.');
     } catch (err) {
       setError(String(err));
     } finally {
       setChecking(false);
+    }
+  };
+
+  const download = async () => {
+    if (!releaseUrl) return;
+    setDownloading(true);
+    setDownloadProgress(0);
+    setError(null);
+    try {
+      const result = await api.downloadAndInstallUpdate?.({ releaseUrl });
+      if (result?.success) setDownloaded(true);
+      else setError(result?.error || 'Download failed.');
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -556,7 +590,24 @@ const UpdatesTab: React.FC<{ version: string }> = ({ version }) => {
         </div>
         {latest && (
           <div className={classNames('mt-3 text-sm', upToDate ? 'text-emerald-400' : 'text-amber-400')}>
-            {upToDate ? `You are on the latest release (${latest}).` : `Latest release: ${latest}. An update may be available.`}
+            {upToDate ? `You are on the latest release (${latest}).` : `Latest release: ${latest}. An update is available.`}
+          </div>
+        )}
+        {hasUpdate && releaseUrl && (
+          <div className="mt-3">
+            <button
+              onClick={download}
+              disabled={downloading || downloaded}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 disabled:opacity-40"
+            >
+              <Download size={12} className={classNames(downloading && 'animate-spin')} />
+              {downloaded ? 'Downloaded — installer launched' : downloading ? `Downloading… ${downloadProgress ?? 0}%` : `Download & install ${latest}`}
+            </button>
+            {downloading && downloadProgress !== null && (
+              <div className="mt-2 h-1.5 theme-bg-tertiary rounded overflow-hidden">
+                <div className="h-full bg-emerald-500 transition-all" style={{ width: `${downloadProgress}%` }} />
+              </div>
+            )}
           </div>
         )}
         {error && <div className="mt-3 text-sm text-rose-400">{error}</div>}

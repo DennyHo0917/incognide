@@ -100,6 +100,42 @@ const StatusBar: React.FC<StatusBarProps> = ({
     const rightButtonGroupWidth = rightSidebarCollapsed ? 192 : (rightSidebarWidth || 192);
     const aiEnabled = useAiEnabled();
     const [downloadPopoverOpen, setDownloadPopoverOpen] = useState(false);
+    const [updateState, setUpdateState] = useState<{ checking: boolean; downloading: boolean; downloadProgress: number | null; downloaded: boolean; latest: string | null; current: string | null; error: string | null; hasUpdate: boolean; releaseUrl: string | null }>({ checking: false, downloading: false, downloadProgress: null, downloaded: false, latest: null, current: null, error: null, hasUpdate: false, releaseUrl: null });
+
+    useEffect(() => {
+        (window as any).api?.getAppVersion?.().then((v: string) => setUpdateState(s => ({ ...s, current: v || null })));
+        const unsub = (window as any).api?.onUpdateDownloadProgress?.((data: { progress: number }) => {
+            setUpdateState(s => ({ ...s, downloadProgress: data.progress }));
+        });
+        return () => unsub?.();
+    }, []);
+
+    const checkUpdates = async () => {
+        if (updateState.hasUpdate && updateState.releaseUrl && !updateState.downloaded) {
+            setUpdateState(s => ({ ...s, downloading: true, downloadProgress: 0, error: null }));
+            try {
+                const result = await (window as any).api?.downloadAndInstallUpdate?.({ releaseUrl: updateState.releaseUrl });
+                setUpdateState(s => ({ ...s, downloading: false, downloaded: !!result?.success, error: result?.error || null }));
+            } catch (err) {
+                setUpdateState(s => ({ ...s, downloading: false, error: String(err) }));
+            }
+            return;
+        }
+        setUpdateState(s => ({ ...s, checking: true, error: null }));
+        try {
+            const result = await (window as any).api?.checkForUpdates?.();
+            setUpdateState(s => ({
+                ...s,
+                checking: false,
+                latest: result?.latestVersion || null,
+                error: result?.error || null,
+                hasUpdate: !!result?.hasUpdate,
+                releaseUrl: result?.releaseUrl || null,
+            }));
+        } catch (err) {
+            setUpdateState(s => ({ ...s, checking: false, error: String(err) }));
+        }
+    };
     const [sshMenuOpen, setSshMenuOpen] = useState(false);
     const [passwordPromptId, setPasswordPromptId] = useState<string | null>(null);
     const [passwordInput, setPasswordInput] = useState('');
@@ -282,11 +318,26 @@ const StatusBar: React.FC<StatusBarProps> = ({
                     </button>
                 )}
                 <button
-                    onClick={() => (window as any).api?.checkForUpdates?.()}
-                    className="flex items-center justify-center h-full hover:bg-teal-500/20 transition-all bg-transparent text-green-400 hover:text-blue-400"
-                    title="Check for updates"
+                    onClick={checkUpdates}
+                    disabled={updateState.checking || updateState.downloading}
+                    className={`flex items-center justify-center h-full hover:bg-teal-500/20 transition-all bg-transparent disabled:opacity-50 ${updateState.hasUpdate || updateState.downloaded ? 'text-green-400' : updateState.error ? 'text-red-400' : 'text-gray-400 hover:text-blue-400'}`}
+                    title={
+                        updateState.checking
+                            ? 'Checking for updates...'
+                            : updateState.downloading
+                                ? `Downloading update ${updateState.latest}... ${updateState.downloadProgress ?? 0}%`
+                                : updateState.error
+                                    ? `Update error: ${updateState.error}`
+                                    : updateState.downloaded
+                                        ? `Update ${updateState.latest} downloaded — installer launched`
+                                        : updateState.hasUpdate
+                                            ? `Update available: ${updateState.latest} (current: ${updateState.current || '?'}) — click to download`
+                                            : updateState.latest
+                                                ? `Up to date: ${updateState.latest}`
+                                                : 'Check for updates'
+                    }
                 >
-                    <Check size={18} />
+                    <Check size={18} className={updateState.checking || updateState.downloading ? 'animate-spin' : ''} />
                 </button>
             </div>
 
